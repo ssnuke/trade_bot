@@ -8,19 +8,18 @@ import time
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from pathlib import Path
-from packages.core.delta_client import DeltaClient
+from delta_client import DeltaClient
 import csv
 import json
 import sys
 import shutil 
 from collections import deque # For log buffer
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify
 from flask_cors import CORS
 import threading
 from dotenv import load_dotenv
-from packages.core.patterns import PatternRecognizer, SupportResistance
-from packages.core.structure_analyzer import StructureAnalyzer
+from patterns import PatternRecognizer, SupportResistance
+from structure_analyzer import StructureAnalyzer
 
 # Ensure UTF-8 output for Windows
 if sys.stdout.encoding != 'utf-8':
@@ -31,21 +30,10 @@ if sys.stdout.encoding != 'utf-8':
 
 load_dotenv()
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-DASHBOARD_UI_DIR = REPO_ROOT / "apps" / "dashboard_flask"
-
-app = Flask(
-    __name__,
-    template_folder=str(DASHBOARD_UI_DIR / "templates"),
-    static_folder=str(DASHBOARD_UI_DIR / "static")
-)
+app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 bot_instance = None
-
-@app.route('/', methods=['GET'])
-def dashboard():
-    return render_template('dashboard.html')
 
 @app.route('/analysis', methods=['GET'])
 def get_analysis():
@@ -55,32 +43,6 @@ def get_analysis():
         data["bot_version"] = "PRO_V2_RESTRICTED"
         return jsonify(data)
     return jsonify({"error": "Bot instance not initialized"})
-
-@app.route('/api/data', methods=['GET'])
-def get_dashboard_api_data():
-    global bot_instance
-    if not bot_instance:
-        return jsonify({"error": "Bot instance not initialized"}), 500
-    try:
-        with open(bot_instance.dashboard_file, "r") as f:
-            return jsonify(json.load(f))
-    except FileNotFoundError:
-        return jsonify({"error": "Dashboard data not available"}), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/dashboard_data', methods=['GET'])
-def get_dashboard_data():
-    global bot_instance
-    if not bot_instance:
-        return jsonify({"error": "Bot instance not initialized"}), 500
-    try:
-        with open(bot_instance.dashboard_file, "r") as f:
-            return jsonify(json.load(f))
-    except FileNotFoundError:
-        return jsonify({"error": "Dashboard data not available"}), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 @app.route('/set_priority', methods=['POST'])
 def set_priority():
@@ -119,7 +81,7 @@ class AggressiveGrowthBot:
         # Adaptive Risk Management
         self.base_leverage = 50
         self.max_daily_loss_pct = 0.20  # Stop trading if down 20% in a day
-        self.max_concurrent_positions = 2
+        self.max_concurrent_positions = 1
         
         # Strategy Parameters
         self.swing_lookback = 20  # Candles to look back for swing high/low
@@ -130,9 +92,8 @@ class AggressiveGrowthBot:
         self.positions = {}  # {symbol: position_data}
         self.product_map = {}
         self.contract_values = {}
-        # Priority symbols (User Specified List)
         self.priority_symbols = [
-            "BTCUSD", "ETHUSD", "SOLUSD", "XRPUSD", 
+            "ETHUSD", "SOLUSD", "XRPUSD", 
             "BNBUSD", "UNIUSD"
         ]
         self.symbols_to_trade = self.priority_symbols.copy()
@@ -143,10 +104,8 @@ class AggressiveGrowthBot:
         self.consecutive_losses = 0
         self.last_reset_day = datetime.now().day
         self.trades = []
-        self.repo_root = Path(__file__).resolve().parents[2]
-        self.data_dir = self.repo_root / "data"
-        self.trade_log_dir = self.data_dir / "paper_trades"
-        self.dashboard_file = self.data_dir / "dashboard_data.json"
+        self.trade_log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "paper_trades")
+        self.dashboard_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard_data.json")
         self.log_queue = deque(maxlen=20) # Keep last 20 logs
         
         # Sniper Mode Configuration
@@ -161,8 +120,12 @@ class AggressiveGrowthBot:
         self._bot_heartbeat_ts = time.time() # For watchdog
         self.startup_token = int(time.time()) # To identify fresh instance
         
+        # Risk Management - Cooldown
+        self.consecutive_sure_shot_losses = 0
+        self.last_loss_time = 0
+        
         if self.paper_trading:
-            self.trade_log_dir.mkdir(parents=True, exist_ok=True)
+            os.makedirs(self.trade_log_dir, exist_ok=True)
         
         print(f"🚀 Aggressive Growth Bot Starting...")
         print(f"   Capital: {self.starting_capital} INR")
@@ -202,21 +165,14 @@ class AggressiveGrowthBot:
         print(f"🎯 Bot will scan {len(self.symbols_to_trade)} active symbols (Loop time ~30-40s)")
     
     def get_adaptive_risk(self, symbol, is_sure_shot=False):
-        """Adaptive position sizing and leverage logic with Autonomous Sniper"""
-        # Strictly 50x Leverage as requested for the 6 core coins
+        """Ultra-Aggressive sizing as requested by user"""
         leverage = 50
-        
-        # Risk percentage based on conviction
-        if is_sure_shot:
-            risk_pct = 0.10 # 10% risk for high conviction
-        else:
-            risk_pct = 0.05 # 5% risk standard
-            
+        risk_pct = 0.75 # 75% capital utilization per trade
         return risk_pct, leverage
     
     def get_reversal_risk(self):
-        """Reversal trades are high risk, so cap leverage"""
-        return 0.05, 50 # Aggressive 50x for Reversals
+        """Reversal trades now also use the 75% / 50x profile"""
+        return 0.75, 50 
     
     def check_daily_limits(self):
         """Check if we should stop trading for the day"""
@@ -340,40 +296,44 @@ class AggressiveGrowthBot:
         return "range"
     
     def check_trend(self, df_15m, symbol):
-        """Check higher timeframe trend with symbol-specific strategy"""
-        if len(df_15m) < 200:
+        """Check higher timeframe trend using EMA 9, 21, and 50 alignment"""
+        if len(df_15m) < 100:
             return None
         
         latest = df_15m.iloc[-1]
         
-        if symbol == "BTCUSD":
-            # Aggressive EMA Strategy for BTC: 9 > 21 > 50
-            if latest['ema9'] > latest['ema21'] and latest['ema21'] > latest['ema50'] and latest['close'] > latest['ema200']:
-                return "up"
-            if latest['ema9'] < latest['ema21'] and latest['ema21'] < latest['ema50'] and latest['close'] < latest['ema200']:
-                return "down"
-        else:
-            # Conservative Strategy for Alts: 20 > 50
-            if latest['ema20'] > latest['ema50'] and latest['close'] > latest['ema200']:
-                return "up"
-            if latest['ema20'] < latest['ema50'] and latest['close'] < latest['ema200']:
-                return "down"
-        
-        # print(f"   [FILTER] {symbol} rejected: No clear EMA trend alignment")
-        return None  # No clear trend
+        # Bullish: EMA 9 > EMA 21
+        if latest['ema9'] > latest['ema21']:
+            if latest['ema21'] > latest['ema50']:
+                return "strong_up"
+            return "up"
+            
+        # Bearish: EMA 9 < EMA 21
+        if latest['ema9'] < latest['ema21']:
+            if latest['ema21'] < latest['ema50']:
+                return "strong_down"
+            return "down"
+            
+        return None
     
     def check_entry_signal(self, symbol):
-        """Check for high-probability entry setup with MTF structure"""
+        """
+        Hybrid Entry Logic: Checks for both Sniper Reversals and Trend Breakouts.
+        """
+        # 1. Check for SNIPER REVERSAL (High Priority)
+        sniper_signal = self.check_sniper_reversal_signal(symbol)
+        if sniper_signal:
+            return sniper_signal
+            
+        # 2. Check for STANDARD MOMENTUM BREAKOUT (Original Logic)
         df_5m, df_15m, df_1h, df_4h = self.get_multi_timeframe_data(symbol)
         if any(df is None for df in [df_5m, df_15m, df_1h, df_4h]):
             return None
         
         df_5m = self.calculate_indicators(df_5m)
         df_15m = self.calculate_indicators(df_15m)
-        df_1h = self.calculate_indicators(df_1h)
-        df_4h = self.calculate_indicators(df_4h)
         
-        # --- NEW PATTERN & LEVEL ANALYSIS ---
+        # Pull tools for analysis UI
         patterns = PatternRecognizer.detect_all(df_5m)
         support_levels = SupportResistance.detect_swing_levels(df_15m)
         
@@ -394,19 +354,16 @@ class AggressiveGrowthBot:
         elif cur['close'] > cur['ut_trail']: active_signal = "HOLD BUY"
         elif cur['close'] < cur['ut_trail']: active_signal = "HOLD SELL"
 
-        # --- NEW STRUCTURE ANALYSIS ---
+        # Structure for UI
         bias, events = StructureAnalyzer.analyze_structure(df_15m)
-        obs = StructureAnalyzer.detect_order_blocks(df_15m)
-        fvgs = StructureAnalyzer.detect_fvg(df_5m)
         sweeps = StructureAnalyzer.detect_liquidity_sweeps(df_5m)
 
         # Store analysis for API
         self.latest_analysis[symbol] = {
-            "patterns": patterns,
+            "patterns": [p['name'] for p in patterns[:3]],
             "support": nearest_support,
             "resistance": nearest_resistance,
             "market_bias": bias,
-            "last_event": events[-1]["type"] if events else "none",
             "sweeps": [s["type"] for s in sweeps],
             "rsi": df_5m.iloc[-1]['rsi'],
             "price": latest_close,
@@ -414,122 +371,172 @@ class AggressiveGrowthBot:
             "last_update": datetime.now().strftime('%H:%M:%S')
         }
         
-        # Update global heartbeat
-        # self.latest_analysis["_bot_heartbeat"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-        if len(df_5m) < 50 or len(df_15m) < 200:
-            return None
-        
-        # Check higher timeframe trend
+        # Check Trend alignment and Volatility/Momentum
         trend = self.check_trend(df_15m, symbol)
-        if not trend:
-            # print(f"   [FILTER] {symbol} rejected: No 15m Trend alignment")
-            return None
+        if not trend: return None
         
-        cur = df_5m.iloc[-1]
-        prev = df_5m.iloc[-2]
+        # Check RSI (5m) for "Sure Shot" range
+        # Long: 50-68 (Trending up but not overbought)
+        # Short: 32-50 (Trending down but not oversold)
+        val_rsi = df_5m.iloc[-1]['rsi']
         
-        # Volume confirmation
-        volume_spike = cur['volume'] > (cur['vol_avg'] * self.volume_mult)
-        if not volume_spike:
-            # print(f"   [FILTER] {symbol} rejected: Volume ({cur['volume']:.0f}) < avg ({cur['vol_avg']:.0f})*1.5")
-            return None
+        # Volume confirmation (Crucial for Momentum Shifts)
+        volume_spike = cur['volume'] > (cur['vol_avg'] * 1.3)
         
-        signal = None
-        entry_price = cur['close']
-        stop_loss = None
-        
-        # UT Bot Signals
-        ut_buy = cur['close'] > cur['ut_trail'] and prev['close'] <= prev['ut_trail'] and cur['close'] > cur['ut_trail']
-        ut_sell = cur['close'] < cur['ut_trail'] and prev['close'] >= prev['ut_trail'] and cur['close'] < cur['ut_trail']
-        
-        if ut_buy and trend == "up":
-            signal = "buy"
-            stop_loss = cur['ut_trail']
-        elif ut_sell and trend == "down":
-            signal = "sell"
-            stop_loss = cur['ut_trail']
-        
-        if signal:
-            # Confluence: Check if patterns align with UT Bot signal
-            
-            # Match current candle time (ISO) for trading signal
-            curr_ts = ""
-            try:
-                # Use 'cur' which is already defined above as df_5m.iloc[-1]
-                ts_val = cur.name
-                if 'time' in cur: ts_val = cur['time']
-                curr_ts = pd.to_datetime(ts_val).isoformat()
-            except:
-                pass
-            
-            # Filter for latest candle only
-            latest_patterns = [p['name'] for p in patterns if p['time'] == curr_ts] if patterns else []
-            
-            has_bullish_pattern = any(p in latest_patterns for p in ["Morning Star", "Three White Soldiers", "Bullish Engulfing", "Hammer", "Bullish Marubozu"])
-            has_bearish_pattern = any(p in latest_patterns for p in ["Evening Star", "Three Black Crows", "Bearish Engulfing", "Shooting Star", "Bearish Marubozu"])
-            
-            # --- FANATIC CONFLUENCE ---
-            # 1. MTF Bias alignment (Mandatory)
-            if bias == "bullish" and signal != "buy": return None
-            if bias == "bearish" and signal != "sell": return None
+        # Candle Quality Check
+        candle_body_pct = abs(cur['close'] - cur['open']) / (cur['high'] - cur['low'] + 0.000001)
+        is_meaningful_candle = candle_body_pct > 0.4 or any(p['name'] in ["Hammer", "Shooting Star", "Bullish Engulfing", "Bearish Engulfing"] for p in patterns if p['time'] == cur.name)
 
-            # 2. Key Elements
-            patt_conf = (signal == "buy" and has_bullish_pattern) or (signal == "sell" and has_bearish_pattern)
-            has_sweep = any(s['type'] == ("Liquidity Sweep Low" if signal == "buy" else "Liquidity Sweep High") for s in sweeps)
+        signal = None
+        stop_loss = None
+        reason = ""
+        is_sure_shot = False
+        
+        # 1. SURE SHOT LOGIC: Triple EMA Alignment (Strong Trend) + RSI Check
+        if trend == "strong_up" and 50 < val_rsi < 68 and volume_spike and is_meaningful_candle:
+            if cur['close'] > cur['ema9'] > cur['ema21']:
+                signal = "buy"
+                is_sure_shot = True
+                stop_loss = cur['low'] * 0.999 # Very tight
+                reason = "🔥 SURE SHOT LONG (Strong Trend + RSI)"
+        elif trend == "strong_down" and 32 < val_rsi < 50 and volume_spike and is_meaningful_candle:
+            if cur['close'] < cur['ema9'] < cur['ema21']:
+                signal = "sell"
+                is_sure_shot = True
+                stop_loss = cur['high'] * 1.001
+                reason = "🔥 SURE SHOT SHORT (Strong Trend + RSI)"
+
+        # 2. MOMENTUM SHIFT (Secondary Logic - Higher Risk)
+        if not signal:
+            is_bullish_cross = cur['ema9'] > cur['ema21'] and prev['ema9'] <= prev['ema21']
+            is_bearish_cross = cur['ema9'] < cur['ema21'] and prev['ema9'] >= prev['ema21']
             
-            # 3. Order Block proximity (High Prob)
-            near_ob = False
-            for ob in obs:
-                if ob['type'] == ("Bullish OB" if signal == "buy" else "Bearish OB"):
-                    if abs(latest_close - (ob['top'] + ob['bottom'])/2) / latest_close < 0.008: # Slightly wider OB window
-                        near_ob = True
-                        break
-            
-            # 4. Fanatic Requirement: High Confluence Only
-            # Require at least TWO of (Pattern, Sweep, Near OB) in addition to Bias
-            confluence_score = sum([patt_conf, has_sweep, near_ob])
-            if confluence_score < 2:
-                # print(f"   [FILTER] {symbol} rejected: Confluence score {confluence_score} < 2")
+            if (is_bullish_cross or ut_buy_signal) and "up" in trend and volume_spike:
+                signal = "buy"
+                stop_loss = min(cur['low'], cur['ema21'])
+                reason = f"MOMENTUM_SHIFT UP ({trend})"
+            elif (is_bearish_cross or ut_sell_signal) and "down" in trend and volume_spike:
+                signal = "sell"
+                stop_loss = max(cur['high'], cur['ema21'])
+                reason = f"MOMENTUM_SHIFT DOWN ({trend})"
+
+        if signal:
+            # Check for Fail Cooldown (Wait 30 mins after 2 consecutive Sure Shot losses)
+            if self.consecutive_sure_shot_losses >= 2 and (time.time() - self.last_loss_time < 1800):
+                print(f"⏸️ Cooldown Active: Skipping {symbol} {signal} due to recent losses.")
                 return None
 
-            is_sure_shot = confluence_score >= 3
-
-            # Calculate TPs
-            risk = abs(entry_price - stop_loss)
-            tp1 = entry_price + (risk * 2.0) if signal == "buy" else entry_price - (risk * 2.0)
-            tp2 = entry_price + (risk * 3.5) if signal == "buy" else entry_price - (risk * 3.5)
-            tp3 = entry_price + (risk * 6.0) if signal == "buy" else entry_price - (risk * 6.0)
-            
-            print(f"✅ Pattern Confirmed: {latest_patterns}")
+            # Multi-Target calculation
+            risk = abs(latest_close - stop_loss)
+            tp_mult = 3.0 if is_sure_shot else 2.5
+            tp1 = latest_close + (risk * tp_mult) if signal == "buy" else latest_close - (risk * tp_mult)
+            tp2 = latest_close + (risk * tp_mult * 2) if signal == "buy" else latest_close - (risk * tp_mult * 2)
+            tp3 = latest_close + (risk * tp_mult * 4) if signal == "buy" else latest_close - (risk * tp_mult * 4)
 
             return {
                 "side": signal,
-                "entry_price": entry_price,
+                "entry_price": latest_close,
                 "stop_loss": stop_loss,
                 "tp1": tp1, "tp2": tp2, "tp3": tp3,
-                "is_sure_shot": False, "is_reversal": False,
-                "reason": f"{trend.upper()} trend + {', '.join(latest_patterns)}"
+                "is_sure_shot": is_sure_shot,
+                "is_sniper": False,
+                "reason": reason
+            }
+        
+        return None
+
+    def check_sniper_reversal_signal(self, symbol):
+        """
+        NEW: Detects high-probability reversal setups (Sniper Strategy).
+        Looks for sweeps, OB taps, and rejection candles at key levels.
+        """
+        df_5m, df_15m, df_1h, df_4h = self.get_multi_timeframe_data(symbol)
+        if any(df is None for df in [df_5m, df_15m, df_1h, df_4h]):
+            return None
+
+        # Calculate everything on 5m for entry
+        df_5m = self.calculate_indicators(df_5m)
+        df_15m = self.calculate_indicators(df_15m)
+        
+        # Pull tools
+        patterns = PatternRecognizer.detect_all(df_5m)
+        obs = StructureAnalyzer.detect_order_blocks(df_15m) # Using 15m OBs for stronger levels
+        sweeps = StructureAnalyzer.detect_liquidity_sweeps(df_5m)
+        support_levels = SupportResistance.detect_swing_levels(df_15m)
+        
+        cur = df_5m.iloc[-1]
+        prev = df_5m.iloc[-2]
+        latest_close = cur['close']
+        
+        # 1. Level Proximity
+        nearest_support = min([l['price'] for l in support_levels if l['price'] < latest_close], default=0, key=lambda x: abs(x - latest_close))
+        nearest_resistance = min([l['price'] for l in support_levels if l['price'] > latest_close], default=999999, key=lambda x: abs(x - latest_close))
+        
+        # 2. Rejection Patterns
+        # Match current candle time (ISO)
+        curr_ts = ""
+        try:
+            ts_val = cur.name
+            if 'time' in cur: ts_val = cur['time']
+            curr_ts = pd.to_datetime(ts_val).isoformat()
+        except: pass
+        
+        latest_patterns = [p['name'] for p in patterns if p['time'] == curr_ts] if patterns else []
+        rejection_long = any(p in latest_patterns for p in ["Hammer", "Bullish Engulfing", "Morning Star", "Bullish Marubozu"])
+        rejection_short = any(p in latest_patterns for p in ["Shooting Star", "Bearish Engulfing", "Evening Star", "Bearish Marubozu"])
+        
+        # 3. Liquidity Sweeps
+        sweep_low = any(s['type'] == "Liquidity Sweep Low" for s in sweeps)
+        sweep_high = any(s['type'] == "Liquidity Sweep High" for s in sweeps)
+        
+        # 4. OB Interaction
+        near_bull_ob = any(ob['type'] == "Bullish OB" and abs(latest_close - (ob['top'] + ob['bottom'])/2) / latest_close < 0.005 for ob in obs)
+        near_bear_ob = any(ob['type'] == "Bearish OB" and abs(latest_close - (ob['top'] + ob['bottom'])/2) / latest_close < 0.005 for ob in obs)
+
+        signal = None
+        stop_loss = None
+        reason = []
+
+        # LONG SNIPER: Sweep Low OR OB Tap OR Major Support + Bullish Rejection
+        if (sweep_low or near_bull_ob or abs(latest_close - nearest_support)/latest_close < 0.002) and rejection_long:
+            signal = "buy"
+            # SL is minimal: just below the rejection candle low
+            stop_loss = cur['low'] * 0.9995 # Tight 0.05% buffer
+            reason = f"SNIPER LONG: {'Sweep' if sweep_low else 'OB' if near_bull_ob else 'Support'} + {latest_patterns[0] if latest_patterns else 'Bullish Rejection'}"
+
+        # SHORT SNIPER: Sweep High OR OB Tap OR Major Resistance + Bearish Rejection
+        elif (sweep_high or near_bear_ob or abs(latest_close - nearest_resistance)/latest_close < 0.002) and rejection_short:
+            signal = "sell"
+            # SL is minimal: just above the rejection candle high
+            stop_loss = cur['high'] * 1.0005 # Tight 0.05% buffer
+            reason = f"SNIPER SHORT: {'Sweep' if sweep_high else 'OB' if near_bear_ob else 'Resistance'} + {latest_patterns[0] if latest_patterns else 'Bearish Rejection'}"
+
+        if signal:
+            # ROI TARGETS for Sniper: Minimal losses, but big wins
+            # We want at least 1:3 RR for these high-leverage trades
+            risk = abs(latest_close - stop_loss)
+            tp1 = latest_close + (risk * 2.0) if signal == "buy" else latest_close - (risk * 2.0)
+            tp2 = latest_close + (risk * 4.0) if signal == "buy" else latest_close - (risk * 4.0)
+            tp3 = latest_close + (risk * 8.0) if signal == "buy" else latest_close - (risk * 8.0) # Aiming for the runner
+
+            return {
+                "side": signal,
+                "entry_price": latest_close,
+                "stop_loss": stop_loss,
+                "tp1": tp1, "tp2": tp2, "tp3": tp3,
+                "is_sure_shot": True, # For leverage logic
+                "is_sniper": True,
+                "reason": reason
             }
         
         return None
     
     def calculate_position_size(self, symbol, entry_price, stop_loss, is_sure_shot=False, is_reversal=False):
-        """Calculate position size based on risk and sniper mode"""
-        if is_reversal:
-            risk_pct, leverage = self.get_reversal_risk()
-        else:
-            risk_pct, leverage = self.get_adaptive_risk(symbol, is_sure_shot)
+        """Calculate position size based on fixed 75% capital and 50x leverage"""
+        risk_pct, leverage = self.get_adaptive_risk(symbol, is_sure_shot)
         
-        # Risk amount in INR
-        risk_amount_inr = self.equity * risk_pct
-        
-        # Price risk per unit
-        price_risk = abs(entry_price - stop_loss) / entry_price
-        
-        # Position size in INR (with leverage)
-        if price_risk == 0: price_risk = 0.01 # Prevent div/0
-        position_size_inr = (risk_amount_inr / price_risk) * leverage
+        # Position value in INR (75% of current equity * 50x leverage)
+        position_size_inr = self.equity * risk_pct * leverage
         
         # Convert to USD
         position_size_usd = position_size_inr / 87
@@ -587,6 +594,7 @@ class AggressiveGrowthBot:
                 "entry_time": datetime.now(),
                 "risk_pct": risk_pct,
                 "leverage": leverage,
+                "is_sniper": signal.get("is_sniper", False),
                 "tp1_hit": False,
                 "tp2_hit": False
             }
@@ -595,65 +603,92 @@ class AggressiveGrowthBot:
             self.save_active_positions()
     
     def manage_positions(self):
-        """Manage open positions with tiered exits"""
+        """Manage open positions with tiered exits and Sniper logic"""
         to_remove = []
         
         for sym, pos in self.positions.items():
-            df_5m, _, _, _ = self.get_multi_timeframe_data(sym)
+            df_5m, df_15m, _, _ = self.get_multi_timeframe_data(sym)
             if df_5m is None:
                 continue
             
-            df_5m = self.calculate_indicators(df_5m)
-            cur_price = df_5m.iloc[-1]['close']
+            latest = df_5m.iloc[-1]
+            cur_price = latest['close']
+            high_price = latest['high']
+            low_price = latest['low']
             
             side = pos['side']
             entry = pos['entry']
+            is_sniper = pos.get('is_sniper', False)
             
-            # Calculate current PnL
+            # 1. STOP LOSS CHECK
+            sl_hit = False
+            exit_price = cur_price
             if side == "buy":
-                pnl_pct = (cur_price - entry) / entry
-                sl_hit = cur_price <= pos['stop_loss']
+                if low_price <= pos['stop_loss']:
+                    sl_hit = True
+                    exit_price = pos['stop_loss']
             else:
-                pnl_pct = (entry - cur_price) / entry
-                sl_hit = cur_price >= pos['stop_loss']
-            
-            # Check stop loss
+                if high_price >= pos['stop_loss']:
+                    sl_hit = True
+                    exit_price = pos['stop_loss']
+
             if sl_hit:
-                print(f"🛑 {sym} STOPPED OUT at ${cur_price:.2f}")
-                self.close_position(sym, cur_price, "SL", pnl_pct, 1.0)
+                print(f"🛑 {sym} STOPPED OUT at ${exit_price:.2f} (Extreme touched)")
+                pnl_pct = (exit_price - entry) / entry if side == "buy" else (entry - exit_price) / entry
+                self.close_position(sym, exit_price, "SL", pnl_pct, 1.0)
                 to_remove.append(sym)
                 self.consecutive_losses += 1
                 continue
             
-            # Tiered profit taking
-            qty_rem = pos['qty_remaining']
-            
-            if side == "buy":
-                if cur_price >= pos['tp1'] and not pos['tp1_hit']:
-                    self.take_profit(sym, cur_price, "TP1", pnl_pct, 0.5, pos)
-                elif cur_price >= pos['tp2'] and pos['tp1_hit'] and not pos['tp2_hit']:
-                    self.take_profit(sym, cur_price, "TP2", pnl_pct, 0.3, pos)
-                elif cur_price >= pos['tp3']:
-                    self.close_position(sym, cur_price, "TP3", pnl_pct, 0.2)
-                    to_remove.append(sym)
-            else: # Sell
-                if cur_price <= pos['tp1'] and not pos['tp1_hit']:
-                    self.take_profit(sym, cur_price, "TP1", pnl_pct, 0.5, pos)
-                elif cur_price <= pos['tp2'] and pos['tp1_hit'] and not pos['tp2_hit']:
-                    self.take_profit(sym, cur_price, "TP2", pnl_pct, 0.3, pos)
-                elif cur_price <= pos['tp3']:
-                    self.close_position(sym, cur_price, "TP3", pnl_pct, 0.2)
-                    to_remove.append(sym)
+            # 2. SNIPER REJECTION EXIT (Still uses close/patterns)
+            if is_sniper:
+                patterns = PatternRecognizer.detect_all(df_5m)
+                curr_ts = df_5m.iloc[-1].name.isoformat() if hasattr(df_5m.iloc[-1].name, 'isoformat') else str(df_5m.iloc[-1].name)
+                latest_patterns = [p['name'] for p in patterns if p['time'] == curr_ts]
+                
+                rejection_exit = False
+                if side == "buy" and any(p in latest_patterns for p in ["Shooting Star", "Bearish Engulfing", "Evening Star"]):
+                    rejection_exit = True
+                elif side == "sell" and any(p in latest_patterns for p in ["Hammer", "Bullish Engulfing", "Morning Star"]):
+                    rejection_exit = True
+                
+                if rejection_exit:
+                    pnl_pct = (cur_price - entry) / entry if side == "buy" else (entry - cur_price) / entry
+                    if pnl_pct > 0.002:
+                        print(f"🎯 SNIPER EARLY EXIT: Reversal pattern detected at ${cur_price:.2f}")
+                        self.close_position(sym, cur_price, "SNIPER_REJECTION", pnl_pct, 1.0)
+                        to_remove.append(sym)
+                        continue
 
-            # Update trailing stop if active
+            # 3. TIERED PROFIT TAKING (Use Extreme High/Low)
+            if side == "buy":
+                pnl_pct_tp = (cur_price - entry) / entry # Use close for log, but limit for execution
+                if high_price >= pos['tp3']:
+                    self.close_position(sym, pos['tp3'], "TP3", (pos['tp3'] - entry)/entry, 1.0)
+                    to_remove.append(sym)
+                elif high_price >= pos['tp2'] and pos['tp1_hit'] and not pos['tp2_hit']:
+                    self.take_profit(sym, pos['tp2'], "TP2", (pos['tp2'] - entry)/entry, 0.3, pos)
+                elif high_price >= pos['tp1'] and not pos['tp1_hit']:
+                    self.take_profit(sym, pos['tp1'], "TP1", (pos['tp1'] - entry)/entry, 0.5, pos)
+            else: # Sell
+                if low_price <= pos['tp3']:
+                    self.close_position(sym, pos['tp3'], "TP3", (entry - pos['tp3'])/entry, 1.0)
+                    to_remove.append(sym)
+                elif low_price <= pos['tp2'] and pos['tp1_hit'] and not pos['tp2_hit']:
+                    self.take_profit(sym, pos['tp2'], "TP2", (entry - pos['tp2'])/entry, 0.3, pos)
+                elif low_price <= pos['tp1'] and not pos['tp1_hit']:
+                    self.take_profit(sym, pos['tp1'], "TP1", (entry - pos['tp1'])/entry, 0.5, pos)
+
+            # 4. TRAILING STOP (Uses close to evaluate, but updates SL level)
             if pos.get('trailing_active'):
                  if side == "buy":
-                    pos['stop_loss'] = max(pos['stop_loss'], cur_price * 0.99)
+                    pos['stop_loss'] = max(pos['stop_loss'], cur_price * 0.995)
                  else:
-                    pos['stop_loss'] = min(pos['stop_loss'], cur_price * 1.01)
+                    pos['stop_loss'] = min(pos['stop_loss'], cur_price * 1.005)
 
         for sym in to_remove:
-            del self.positions[sym]
+            if sym in self.positions:
+                del self.positions[sym]
     
     def take_profit(self, sym, price, level, pnl_pct, portion, pos):
         close_qty = int(pos['qty'] * portion)
@@ -676,6 +711,14 @@ class AggressiveGrowthBot:
         
         self.equity += pnl_inr
         
+        # Tracking Sure Shot accuracy for cooldown
+        if pos.get('is_sure_shot', False):
+            if pnl_inr < 0:
+                self.consecutive_sure_shot_losses += 1
+                self.last_loss_time = time.time()
+            else:
+                self.consecutive_sure_shot_losses = 0
+
         if pnl_inr > 0:
             self.consecutive_losses = 0
             
@@ -701,7 +744,7 @@ class AggressiveGrowthBot:
     def export_trades(self):
         """Export trades to CSV"""
         if not self.trades: return
-        filename = self.trade_log_dir / f"trades_pro_{datetime.now().strftime('%Y%m%d')}.csv"
+        filename = os.path.join(self.trade_log_dir, f"trades_pro_{datetime.now().strftime('%Y%m%d')}.csv")
         try:
             with open(filename, 'w', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=self.trades[0].keys())
@@ -712,7 +755,7 @@ class AggressiveGrowthBot:
 
     def save_active_positions(self):
         """Save current open positions to JSON for monitoring"""
-        filename = self.trade_log_dir / "active_positions_pro.json"
+        filename = os.path.join(self.trade_log_dir, "active_positions_pro.json")
         try:
             serializable_positions = {}
             for sym, pos in self.positions.items():
@@ -769,7 +812,7 @@ class AggressiveGrowthBot:
             }
             
             # Atomic write
-            temp = self.dashboard_file.with_name(self.dashboard_file.name + ".tmp")
+            temp = self.dashboard_file + ".tmp"
             with open(temp, "w") as f:
                 json.dump(data, f, indent=4)
             shutil.move(temp, self.dashboard_file)
@@ -844,13 +887,17 @@ class AggressiveGrowthBot:
                 print(" " * 50, end="\r")
                 
             except Exception as e:
-                print(f"❌ Error in main loop: {e}")
-                time.sleep(5)
+                error_msg = f"❌ Error in main loop: {e}"
+                print(error_msg)
+                self.log_queue.append(f"{datetime.now().strftime('%H:%M:%S')} - {error_msg}")
+                # Update heartbeat even on error so watchdog doesn't get confused
+                self._bot_heartbeat_ts = time.time()
+                time.sleep(10) # Wait a bit before retrying
+
 
 def run_flask():
-    port = int(os.getenv("PORT", "5005"))
-    print(f"📡 API Server starting on port {port}...")
-    app.run(host='0.0.0.0', port=port, threaded=True, debug=False, use_reloader=False)
+    print(f"📡 API Server starting on port 5005...")
+    app.run(host='0.0.0.0', port=5005, threaded=True, debug=False, use_reloader=False)
 
 def watchdog_thread(bot):
     """Monitors the bot's health and restarts the loop if it hangs"""
