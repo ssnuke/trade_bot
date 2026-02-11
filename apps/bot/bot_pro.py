@@ -8,13 +8,14 @@ import time
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from pathlib import Path
 from packages.core.delta_client import DeltaClient
 import csv
 import json
 import sys
 import shutil 
 from collections import deque # For log buffer
-from flask import Flask, jsonify
+from flask import Flask, jsonify, redirect
 from flask_cors import CORS
 import threading
 from dotenv import load_dotenv
@@ -33,6 +34,8 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+DASHBOARD_URL = os.getenv("DASHBOARD_URL", "").strip()
+
 bot_instance = None
 
 @app.route('/analysis', methods=['GET'])
@@ -43,6 +46,16 @@ def get_analysis():
         data["bot_version"] = "PRO_V2_RESTRICTED"
         return jsonify(data)
     return jsonify({"error": "Bot instance not initialized"})
+
+@app.route('/', methods=['GET'])
+def root_redirect():
+    if DASHBOARD_URL:
+        return redirect(DASHBOARD_URL, code=302)
+    return jsonify({
+        "status": "ok",
+        "message": "Set DASHBOARD_URL to redirect to the UI.",
+        "endpoints": ["/analysis", "/health", "/dashboard_data"]
+    })
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -57,6 +70,14 @@ def health():
             "startup_token": bot_instance.startup_token,
             "server_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
+    return jsonify(data)
+
+@app.route('/dashboard_data', methods=['GET'])
+def dashboard_data():
+    global bot_instance
+    if not bot_instance:
+        return jsonify({"error": "Bot instance not initialized"}), 503
+    data = bot_instance.build_dashboard_data()
     return jsonify(data)
 
 @app.route('/set_priority', methods=['POST'])
@@ -120,7 +141,8 @@ class AggressiveGrowthBot:
         self.last_reset_day = datetime.now().day
         self.trades = []
         self.trade_log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "paper_trades")
-        self.dashboard_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard_data.json")
+        base_dir = Path(__file__).resolve().parents[2]
+        self.dashboard_file = str(base_dir / "data" / "dashboard_data.json")
         self.log_queue = deque(maxlen=20) # Keep last 20 logs
         
         # Sniper Mode Configuration
@@ -788,45 +810,46 @@ class AggressiveGrowthBot:
         except Exception as e:
             print(f"   ❌ Active positions save error: {e}")
 
+    def build_dashboard_data(self):
+        total_trades = len(self.trades)
+        winning_trades = len([t for t in self.trades if t['pnl_inr'] > 0])
+        losing_trades = len([t for t in self.trades if t['pnl_inr'] < 0])
+        win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+        total_pnl = self.equity - self.starting_capital
+
+        return {
+            "equity": round(self.equity, 2),
+            "target": self.target_equity,
+            "start_equity": self.starting_capital,
+            "pnl": round(total_pnl, 2),
+            "pnl_pct": round((total_pnl / self.starting_capital) * 100, 2),
+            "total_trades": total_trades,
+            "winning_trades": winning_trades,
+            "losing_trades": losing_trades,
+            "win_rate": round(win_rate, 2),
+            "positions": [
+                {
+                    "symbol": p,
+                    "side": d['side'],
+                    "entry": d['entry'],
+                    "qty": d['qty'],
+                    "leverage": d.get('leverage', 15),
+                    "unrealized_pnl": 0.0
+                } for p, d in self.positions.items()
+            ],
+            "recent_trades": self.trades[-50:],
+            "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "active_mode": "SNIPER" if self.equity < self.bootstrap_target else "GROWTH",
+            "leverage_mode": "PRO",
+            "market_structure": self.latest_analysis,
+            "recent_logs": list(self.log_queue)
+        }
+
     def export_dashboard_data(self):
-        """Export real-time state for Streamlit Dashboard"""
+        """Export real-time state for the dashboard UI."""
         try:
-            # Calculate Win Rate and other Stats
-            total_trades = len(self.trades)
-            winning_trades = len([t for t in self.trades if t['pnl_inr'] > 0])
-            losing_trades = len([t for t in self.trades if t['pnl_inr'] < 0])
-            win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
-            total_pnl = self.equity - self.starting_capital
-            
-            data = {
-                "equity": round(self.equity, 2),
-                "target": self.target_equity,
-                "start_equity": self.starting_capital,
-                "pnl": round(total_pnl, 2),
-                "pnl_pct": round((total_pnl / self.starting_capital) * 100, 2),
-                "total_trades": total_trades,
-                "winning_trades": winning_trades,
-                "losing_trades": losing_trades,
-                "win_rate": round(win_rate, 2),
-                "positions": [
-                    {
-                        "symbol": p,
-                        "side": d['side'], 
-                        "entry": d['entry'], 
-                        "qty": d['qty'],
-                        "leverage": d.get('leverage', 15),
-                        "unrealized_pnl": 0.0 
-                    } for p, d in self.positions.items()
-                ],
-                "recent_trades": self.trades[-50:], # Increased to 50
-                "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "active_mode": "SNIPER" if self.equity < self.bootstrap_target else "GROWTH",
-                "leverage_mode": "PRO",
-                "market_structure": self.latest_analysis,
-                "recent_logs": list(self.log_queue)
-            }
-            
-            # Atomic write
+            data = self.build_dashboard_data()
+
             temp = self.dashboard_file + ".tmp"
             with open(temp, "w") as f:
                 json.dump(data, f, indent=4)

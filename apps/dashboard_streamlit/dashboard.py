@@ -3,7 +3,6 @@ import json
 import pandas as pd
 import time
 import os
-from pathlib import Path
 import plotly.graph_objects as go
 
 st.set_page_config(layout="wide", page_title="ZeroHero Dashboard", page_icon="⚡")
@@ -24,11 +23,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-DASHBOARD_FILE = BASE_DIR / "data" / "dashboard_data.json"
+DASHBOARD_FILE = "s:/delta_bot/dashboard_data.json"
 
 def load_data():
-    if not DASHBOARD_FILE.exists(): return None
+    if not os.path.exists(DASHBOARD_FILE): return None
     try:
         with open(DASHBOARD_FILE, "r") as f: return json.load(f)
     except: return None
