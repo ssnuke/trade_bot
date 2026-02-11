@@ -15,7 +15,7 @@ import json
 import sys
 import shutil 
 from collections import deque # For log buffer
-from flask import Flask, jsonify, redirect
+from flask import Flask, jsonify, render_template
 from flask_cors import CORS
 import threading
 from dotenv import load_dotenv
@@ -31,10 +31,11 @@ if sys.stdout.encoding != 'utf-8':
 
 load_dotenv()
 
-app = Flask(__name__)
+base_dir = Path(__file__).resolve().parents[2]
+template_dir = base_dir / "apps" / "dashboard_flask" / "templates"
+static_dir = base_dir / "apps" / "dashboard_flask" / "static"
+app = Flask(__name__, template_folder=str(template_dir), static_folder=str(static_dir))
 CORS(app, resources={r"/*": {"origins": "*"}})
-
-DASHBOARD_URL = os.getenv("DASHBOARD_URL", "").strip()
 
 bot_instance = None
 
@@ -49,13 +50,7 @@ def get_analysis():
 
 @app.route('/', methods=['GET'])
 def root_redirect():
-    if DASHBOARD_URL:
-        return redirect(DASHBOARD_URL, code=302)
-    return jsonify({
-        "status": "ok",
-        "message": "Set DASHBOARD_URL to redirect to the UI.",
-        "endpoints": ["/analysis", "/health", "/dashboard_data"]
-    })
+    return render_template('dashboard.html')
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -79,6 +74,10 @@ def dashboard_data():
         return jsonify({"error": "Bot instance not initialized"}), 503
     data = bot_instance.build_dashboard_data()
     return jsonify(data)
+
+@app.route('/api/data', methods=['GET'])
+def dashboard_data_alias():
+    return dashboard_data()
 
 @app.route('/set_priority', methods=['POST'])
 def set_priority():
