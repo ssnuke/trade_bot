@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delta Pro Dashboard | Premium Crypto Sniper</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1>⚡ DELTA PRO <span class="accent-text">SNIPER</span></h1>
+                <div class="bot-info">
+                    <span class="status-indicator running" id="botStatus">●</span>
+                    <span id="botStatusText">Scanning Markets...</span>
+                    <span class="divider">|</span>
+                    <span class="mode-badge" id="activeMode">SNIPER</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="heartbeat">
+                    <span class="label">Heartbeat:</span>
+                    <span id="lastHeartbeat">--:--:--</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">💰</div>
+                <div class="stat-body">
+                    <div class="stat-label">Total Equity</div>
+                    <div class="stat-value" id="equity">₹0</div>
+                    <div class="stat-sub" id="pnlProgress">0% of target</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📈</div>
+                <div class="stat-body">
+                    <div class="stat-label">Total P&L</div>
+                    <div class="stat-value" id="totalPnl">₹0</div>
+                    <div class="stat-sub" id="pnlPct">+0%</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🎯</div>
+                <div class="stat-body">
+                    <div class="stat-label">Win Rate</div>
+                    <div class="stat-value" id="winRate">0%</div>
+                    <div class="stat-sub" id="tradeCount">0 Trades</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⚡</div>
+                <div class="stat-body">
+                    <div class="stat-label">Daily P&L</div>
+                    <div class="stat-value" id="dailyPnl">₹0</div>
+                    <div class="stat-sub">Current Session</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Left Column: Positions & Trades -->
+            <div class="left-col">
+                <div class="card section">
+                    <div class="section-header">
+                        <h2>🔥 Active Positions</h2>
+                        <span class="badge" id="positionCount">0</span>
+                    </div>
+                    <div class="positions-list" id="positionsContainer">
+                        <div class="empty-state">No active positions</div>
+                    </div>
+                </div>
+
+                <div class="card section">
+                    <div class="section-header">
+                        <h2>📊 Trade History</h2>
+                        <button class="btn-text" id="exportCsv">Export CSV</button>
+                    </div>
+                    <div class="table-container">
+                        <table class="trade-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Symbol</th>
+                                    <th>Side</th>
+                                    <th>Exit Price</th>
+                                    <th>ROI%</th>
+                                    <th>P&L (₹)</th>
+                                    <th>Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tradeHistoryBody">
+                                <tr>
+                                    <td colspan="7" class="empty-state">No trades recorded yet</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Logs & Analysis -->
+            <div class="right-col">
+                <div class="card section logs-section">
+                    <div class="section-header">
+                        <h2>📡 Live Scanning Feed</h2>
+                    </div>
+                    <div class="logs-container" id="logsContainer">
+                        <div class="log-entry">Connecting to feed...</div>
+                    </div>
+                </div>
+
+                <div class="card section analysis-section">
+                    <div class="section-header">
+                        <h2>🔍 Market Analysis</h2>
+                    </div>
+                    <div class="analysis-grid" id="analysisContainer">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+
+</html>

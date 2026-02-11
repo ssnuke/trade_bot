@@ -1,0 +1,20 @@
+app = "delta-bot-dashboard"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.dashboard"
+
+[env]
+  PYTHONUNBUFFERED = "1"
+
+[[services]]
+  internal_port = 5006
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]

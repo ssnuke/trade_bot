@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.*
+.git/
+.gitignore
+data/*.json
+data/paper_trades/

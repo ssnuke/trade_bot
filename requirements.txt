@@ -1,0 +1,7 @@
+requests
+pandas
+python-dotenv
+flask
+flask-cors
+streamlit
+plotly

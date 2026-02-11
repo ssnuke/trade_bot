@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: delta-bot-worker
+    env: docker
+    dockerfilePath: ./Dockerfile.bot
+    autoDeploy: true
+    healthCheckPath: /analysis
+    envVars:
+      - key: DELTA_API_KEY
+        sync: false
+      - key: DELTA_API_SECRET
+        sync: false
+      - key: DELTA_BASE_URL
+        value: https://api.india.delta.exchange
+      - key: PAPER_TRADING
+        value: "True"
+
+  - type: web
+    name: delta-bot-dashboard
+    env: docker
+    dockerfilePath: ./Dockerfile.dashboard
+    autoDeploy: true
+    healthCheckPath: /
+    envVars:
+      - key: BOT_API_URL
+        value: https://delta-bot-worker.onrender.com

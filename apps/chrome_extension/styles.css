@@ -1,0 +1,166 @@
+#delta-bot-overlay {
+  position: fixed;
+  top: 100px;
+  right: 20px;
+  width: 250px;
+  background-color: #1e1e2d;
+  color: #ffffff;
+  border: 1px solid #3f3f4e;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 99999;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 13px;
+}
+
+#delta-bot-overlay .header {
+  background-color: #2b2b3c;
+  padding: 10px;
+  border-bottom: 1px solid #3f3f4e;
+  border-radius: 8px 8px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+}
+
+#delta-bot-overlay .header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#delta-bot-overlay .header button {
+  background: none;
+  border: none;
+  color: #a0a0b0;
+  cursor: pointer;
+  font-size: 16px;
+  transition: color 0.2s, transform 0.2s;
+  padding: 0 4px;
+}
+
+#delta-bot-overlay .header button:hover {
+  color: #fff;
+}
+
+#refresh-bot.rotating {
+  animation: rotate 0.5s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#delta-bot-overlay .content {
+  padding: 10px;
+}
+
+#delta-bot-overlay .stat-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+#delta-bot-overlay .label {
+  color: #a0a0b0;
+}
+
+#delta-bot-overlay .value {
+  font-weight: 600;
+}
+
+#delta-bot-overlay .value.up {
+  color: #00e676;
+  text-shadow: 0 0 5px rgba(0, 230, 118, 0.3);
+}
+
+#delta-bot-overlay .value.down,
+#delta-bot-overlay .value.bearish {
+  color: #ff3d00;
+  text-shadow: 0 0 5px rgba(255, 61, 0, 0.3);
+}
+
+#delta-bot-overlay .value.bullish {
+  color: #00e676;
+  text-shadow: 0 0 5px rgba(0, 230, 118, 0.3);
+}
+
+#bot-signal {
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+#bot-signal.up {
+  background-color: rgba(0, 230, 118, 0.2);
+  border: 1px solid #00e676;
+}
+
+#bot-signal.down {
+  background-color: rgba(255, 61, 0, 0.2);
+  border: 1px solid #ff3d00;
+}
+
+#delta-bot-overlay .section-title {
+  margin-top: 12px;
+  margin-bottom: 5px;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #6c6c7e;
+  border-bottom: 1px solid #3f3f4e;
+  padding-bottom: 2px;
+}
+
+#delta-bot-overlay .patterns-list {
+  min-height: 20px;
+  margin-bottom: 8px;
+}
+
+#delta-bot-overlay .badge {
+  background-color: #3d5afe;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  margin-right: 4px;
+  display: inline-block;
+  margin-bottom: 4px;
+}
+
+#delta-bot-overlay .badge-row {
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+}
+
+#delta-bot-overlay .badge-detail {
+  font-size: 11px;
+  color: #a0a0b0;
+  margin-left: 4px;
+}
+
+#delta-bot-overlay .footer {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #3f3f4e;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+#delta-bot-overlay .warning-row {
+  margin-top: 8px;
+  padding: 4px;
+  background-color: rgba(255, 61, 0, 0.1);
+  color: #ff3d00;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: bold;
+}

@@ -1,0 +1,31 @@
+{
+    "manifest_version": 3,
+    "name": "Delta Bot Pro Assistant",
+    "version": "1.0",
+    "description": "Overlays trading bot analysis on Delta Exchange.",
+    "permissions": [
+        "activeTab"
+    ],
+    "host_permissions": [
+        "*://*.delta.exchange/*",
+        "http://localhost:5001/*",
+        "http://127.0.0.1:5001/*",
+        "http://127.0.0.1:5005/*"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "*://*.delta.exchange/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "css": [
+                "styles.css"
+            ]
+        }
+    ]
+}
