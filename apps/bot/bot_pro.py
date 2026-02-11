@@ -44,6 +44,21 @@ def get_analysis():
         return jsonify(data)
     return jsonify({"error": "Bot instance not initialized"})
 
+@app.route('/health', methods=['GET'])
+def health():
+    global bot_instance
+    data = {
+        "status": "ok",
+        "bot_initialized": bool(bot_instance)
+    }
+    if bot_instance:
+        data.update({
+            "bot_heartbeat_ts": bot_instance._bot_heartbeat_ts,
+            "startup_token": bot_instance.startup_token,
+            "server_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+    return jsonify(data)
+
 @app.route('/set_priority', methods=['POST'])
 def set_priority():
     global bot_instance
