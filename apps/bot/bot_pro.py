@@ -8,7 +8,7 @@ import time
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from delta_client import DeltaClient
+from packages.core.delta_client import DeltaClient
 import csv
 import json
 import sys
@@ -18,8 +18,8 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 import threading
 from dotenv import load_dotenv
-from patterns import PatternRecognizer, SupportResistance
-from structure_analyzer import StructureAnalyzer
+from packages.core.patterns import PatternRecognizer, SupportResistance
+from packages.core.structure_analyzer import StructureAnalyzer
 
 # Ensure UTF-8 output for Windows
 if sys.stdout.encoding != 'utf-8':
