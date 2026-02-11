@@ -15,7 +15,7 @@ import json
 import sys
 import shutil 
 from collections import deque # For log buffer
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
 from flask_cors import CORS
 import threading
 from dotenv import load_dotenv
@@ -31,10 +31,21 @@ if sys.stdout.encoding != 'utf-8':
 
 load_dotenv()
 
-app = Flask(__name__)
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DASHBOARD_UI_DIR = REPO_ROOT / "apps" / "dashboard_flask"
+
+app = Flask(
+    __name__,
+    template_folder=str(DASHBOARD_UI_DIR / "templates"),
+    static_folder=str(DASHBOARD_UI_DIR / "static")
+)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 bot_instance = None
+
+@app.route('/', methods=['GET'])
+def dashboard():
+    return render_template('dashboard.html')
 
 @app.route('/analysis', methods=['GET'])
 def get_analysis():
@@ -44,6 +55,19 @@ def get_analysis():
         data["bot_version"] = "PRO_V2_RESTRICTED"
         return jsonify(data)
     return jsonify({"error": "Bot instance not initialized"})
+
+@app.route('/api/data', methods=['GET'])
+def get_dashboard_api_data():
+    global bot_instance
+    if not bot_instance:
+        return jsonify({"error": "Bot instance not initialized"}), 500
+    try:
+        with open(bot_instance.dashboard_file, "r") as f:
+            return jsonify(json.load(f))
+    except FileNotFoundError:
+        return jsonify({"error": "Dashboard data not available"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/dashboard_data', methods=['GET'])
 def get_dashboard_data():
