@@ -10,6 +10,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY apps ./apps
 COPY packages ./packages
 COPY tools ./tools
-COPY data ./data
+RUN mkdir -p /app/data /app/data/paper_trades
 
 CMD ["python", "-m", "apps.bot.bot_pro"]

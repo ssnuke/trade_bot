@@ -8,6 +8,6 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY apps ./apps
-COPY data ./data
+RUN mkdir -p /app/data
 
 CMD ["python", "-m", "apps.dashboard_flask.flask_dashboard"]
