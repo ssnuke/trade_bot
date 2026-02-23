@@ -8,7 +8,7 @@ import time
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-import delta_client
+from delta_client import DeltaClient
 import csv
 import json
 import sys
