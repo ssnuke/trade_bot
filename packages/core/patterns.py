@@ -49,6 +49,23 @@ class PatternRecognizer:
         return body >= (rng * 0.9) and rng > 0
 
     @staticmethod
+    def is_indecision_candle(open_px, high, low, close):
+        """Doji, spinning top, or high-wick candle"""
+        body = abs(close - open_px)
+        rng = high - low
+        if rng == 0: return True
+        wick_ratio = (rng - body) / rng
+        return (body < (rng * 0.3)) or (wick_ratio > 0.7)
+
+    @staticmethod
+    def get_candle_clarity(open_px, high, low, close):
+        """0-1 scale of how 'clean' the candle is (1 = marubozu, 0 = doji)"""
+        body = abs(close - open_px)
+        rng = high - low
+        if rng == 0: return 0
+        return body / rng
+
+    @staticmethod
     def is_morning_star(candles):
         # candles: [first (bearish), second (doji/small), third (bullish)]
         if len(candles) < 3: return False
