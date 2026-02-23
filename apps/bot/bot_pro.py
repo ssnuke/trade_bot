@@ -40,10 +40,11 @@ def home():
     return jsonify({
         "service": "Delta Bot Worker (Engine)",
         "status": "Running",
-        "message": "This is the backend engine. Please visit your Dashboard URL for the trading UI.",
-        "api_endpoints": ["/analysis", "/reset"]
+        "message": "This is the backend engine. The UI is hosted on a SEPARATE Render service (delta-bot-dashboard).",
+        "api_endpoints": ["/analysis", "/dashboard_data", "/reset"]
     })
 
+@app.route('/dashboard_data', methods=['GET'])
 @app.route('/analysis', methods=['GET'])
 def get_analysis():
     global bot_instance
@@ -64,6 +65,28 @@ def set_priority():
             bot_instance.priority_symbol = symbol
             return jsonify({"status": "success", "priority": symbol})
     return jsonify({"error": "Bot instance not initialized"}), 400
+
+@app.route('/api/session_history', methods=['GET'])
+def get_history():
+    global bot_instance
+    if not bot_instance:
+        return jsonify([])
+    
+    history_dir = bot_instance.session_history_dir
+    if not os.path.exists(history_dir):
+        return jsonify([])
+    
+    history = []
+    try:
+        from pathlib import Path
+        for file_path in Path(history_dir).glob("session_*.json"):
+            with open(file_path, 'r') as f:
+                history.append(json.load(f))
+        # Sort by date descending
+        history.sort(key=lambda x: x.get('date', ''), reverse=True)
+        return jsonify(history)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/reset', methods=['POST'])
 def reset_bot():

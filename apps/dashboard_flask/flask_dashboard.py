@@ -43,6 +43,18 @@ def get_data():
 
 @app.route('/api/session_history')
 def get_session_history():
+    # If BOT_API_URL is available, fetch history from the bot's API
+    if BOT_API_URL:
+        try:
+            url = f"{BOT_API_URL.rstrip('/')}/api/session_history"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            return jsonify(response.json())
+        except Exception as e:
+            print(f"Error fetching session history from bot: {e}")
+            # Continue to local fallback if API fails
+    
+    # Fallback to local disk (useful for local development)
     history_dir = BASE_DIR / "apps" / "bot" / "paper_trades" / "sessions"
     if not history_dir.exists():
         return jsonify([])
@@ -57,7 +69,7 @@ def get_session_history():
         history.sort(key=lambda x: x.get('date', ''), reverse=True)
         return jsonify(history)
     except Exception as e:
-        print(f"Error loading session history: {e}")
+        print(f"Error loading local session history: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
