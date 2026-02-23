@@ -35,6 +35,15 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 bot_instance = None
 
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({
+        "service": "Delta Bot Worker (Engine)",
+        "status": "Running",
+        "message": "This is the backend engine. Please visit your Dashboard URL for the trading UI.",
+        "api_endpoints": ["/analysis", "/reset"]
+    })
+
 @app.route('/analysis', methods=['GET'])
 def get_analysis():
     global bot_instance
