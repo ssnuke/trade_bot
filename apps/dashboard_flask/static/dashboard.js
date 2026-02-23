@@ -25,6 +25,11 @@ function updateUI(data) {
     // Safety split for last_update
     const lastUpdate = data.last_update || '';
     document.getElementById('lastHeartbeat').innerText = lastUpdate.includes(' ') ? lastUpdate.split(' ')[1] : lastUpdate;
+    
+    // Trading Day
+    if (data.session_date) {
+        document.getElementById('tradingDay').innerText = data.session_date;
+    }
 
     // Stats
     document.getElementById('equity').innerText = `₹${(data.equity || 0).toLocaleString()}`;
@@ -47,6 +52,16 @@ function updateUI(data) {
 
     document.getElementById('winRate').innerText = `${data.win_rate || 0}%`;
     document.getElementById('tradeCount').innerText = `${data.total_trades || 0} Trades`;
+
+    // --- DAILY SESSION STATS ---
+    const sessionPnlEl = document.getElementById('sessionPnl');
+    if (sessionPnlEl) {
+        sessionPnlEl.innerText = `₹${(data.daily_pnl || 0).toLocaleString()}`;
+        sessionPnlEl.className = (data.daily_pnl || 0) >= 0 ? 'value pnl-pos' : 'value pnl-neg';
+    }
+    document.getElementById('sessionTrades').innerText = data.daily_trades || 0;
+    document.getElementById('sessionWinLoss').innerText = `${data.daily_wins || 0} / ${data.daily_losses || 0}`;
+    document.getElementById('sessionStart').innerText = data.session_start_time || '--:--';
 
     // Positions
     const posContainer = document.getElementById('positionsContainer');
@@ -119,11 +134,38 @@ function updateUI(data) {
     }
 }
 
+async function fetchSessionHistory() {
+    try {
+        const response = await fetch('/api/session_history');
+        if (!response.ok) throw new Error('History fetch failed');
+        const history = await response.json();
+        const container = document.getElementById('historyContainer');
+        
+        if (history.length > 0) {
+            container.innerHTML = history.map(session => `
+                <div class="history-item">
+                    <div class="history-date">📅 ${session.date}</div>
+                    <div class="history-data">Net PnL: <span class="history-pnl ${session.net_pnl_inr >= 0 ? 'pnl-pos' : 'pnl-neg'}">₹${session.net_pnl_inr.toLocaleString()}</span></div>
+                    <div class="history-data">Trades: <span>${session.total_trades}</span></div>
+                    <div class="history-data">Win/Loss: <span>${session.wins} / ${session.losses}</span></div>
+                    <div class="history-data">Win Rate: <span>${session.win_rate}%</span></div>
+                </div>
+            `).join('');
+        } else {
+            container.innerHTML = '<div class="empty-state">No past sessions recorded yet.</div>';
+        }
+    } catch (error) {
+        console.error('Error fetching history:', error);
+    }
+}
+
 // Initial fetch and start interval
 fetchData();
+fetchSessionHistory();
 setInterval(fetchData, 1000);
+setInterval(fetchSessionHistory, 30000); // Check history every 30s
 
 // Export CSV handler
-document.getElementById('exportCsv').addEventListener('click', () => {
+document.getElementById('exportCsv')?.addEventListener('click', () => {
     alert('Exporting to paper_trades folder on server...');
 });

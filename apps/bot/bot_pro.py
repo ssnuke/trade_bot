@@ -7,8 +7,8 @@ import os
 import time
 import pandas as pd
 import numpy as np
-from datetime import datetime
-from delta_client import DeltaClient
+from datetime import datetime, timedelta
+import delta_client
 import csv
 import json
 import sys
@@ -179,7 +179,21 @@ class AggressiveGrowthBot:
         print(f"   Mode: {'PAPER' if self.paper_trading else 'LIVE'}")
         
         self.load_state() # Load previous state if available
+        
+        # --- IST SESSION TRACKING ---
+        self.session_history_dir = os.path.join(self.trade_log_dir, "sessions")
+        os.makedirs(self.session_history_dir, exist_ok=True)
+        
+        ist_now = self.get_ist_now()
+        self.session_date = ist_now.strftime('%Y-%m-%d')
+        self.session_start_time = ist_now
+        self.daily_start_equity = self.equity # Baseline for current 24h session
+        
         self._init_products()
+
+    def get_ist_now(self):
+        """Get current time in IST (UTC+5:30)"""
+        return datetime.utcnow() + timedelta(hours=5, minutes=30)
     
     def _init_products(self):
         """Fetch all USD products dynamically"""
@@ -236,22 +250,30 @@ class AggressiveGrowthBot:
         return self.get_adaptive_risk("", is_sniper=True)
     
     def check_daily_limits(self):
-        """Check if we should stop trading for the day"""
+        """Check if we should stop trading for the day (IST-based)"""
         if self.bypass_limits:
             print("✨ Manual bypass active. Resuming trades...")
             self.bypass_limits = False
             return True
 
-        current_day = datetime.now().day
+        ist_now = self.get_ist_now()
+        current_ist_date = ist_now.strftime('%Y-%m-%d')
         
-        # Reset daily counters
-        if current_day != self.last_reset_day:
+        # Session Rollover Concept (IST Midnight)
+        if current_ist_date != self.session_date:
+            print(f"\n🌅 NEW SESSION DETECTED: {current_ist_date} (IST)")
+            self.save_session_record() # Save record for completed day
+            
+            # Reset daily counters for the new session
             self.daily_start_equity = self.equity
             self.daily_trades = 0
-            self.last_reset_day = current_day
+            self.session_date = current_ist_date
+            self.session_start_time = ist_now
+            self.last_reset_day = ist_now.day
+            self.save_active_positions()
         
         # Check daily loss limit
-        daily_pnl_pct = (self.equity - self.daily_start_equity) / self.daily_start_equity
+        daily_pnl_pct = (self.equity - self.daily_start_equity) / self.daily_start_equity if self.daily_start_equity > 0 else 0
         if daily_pnl_pct < -self.max_daily_loss_pct:
             print(f"⛔ Daily loss limit hit ({daily_pnl_pct*100:.1f}%). Stopping for today.")
             return False
@@ -262,6 +284,44 @@ class AggressiveGrowthBot:
             return False
         
         return True
+
+    def save_session_record(self):
+        """Save a record of the completed trading session"""
+        try:
+            ist_now = self.get_ist_now()
+            # Calculate session stats
+            session_trades = [t for t in self.trades if t.get('time', '').startswith(self.session_date)]
+            wins = len([t for t in session_trades if t['pnl_inr'] > 0])
+            losses = len([t for t in session_trades if t['pnl_inr'] < 0])
+            total_trades = len(session_trades)
+            win_rate = (wins / total_trades * 100) if total_trades > 0 else 0
+            net_pnl = self.equity - self.daily_start_equity
+            
+            summary = {
+                "date": self.session_date,
+                "start_equity": round(self.daily_start_equity, 2),
+                "end_equity": round(self.equity, 2),
+                "net_pnl_inr": round(net_pnl, 2),
+                "total_trades": total_trades,
+                "wins": wins,
+                "losses": losses,
+                "win_rate": round(win_rate, 2),
+                "session_started": self.session_start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                "session_ended": ist_now.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            
+            # Save to JSON
+            filename = os.path.join(self.session_history_dir, f"session_{self.session_date}.json")
+            with open(filename, 'w') as f:
+                json.dump(summary, f, indent=4)
+                
+            print(f"📁 Session record saved: {filename}")
+            
+            # Add to logs
+            self.log_queue.append(f"🌅 Session Ended: {self.session_date} | PnL: ₹{net_pnl:+.2f}")
+            
+        except Exception as e:
+            print(f"⚠️ Failed to save session record: {e}")
     
     def reset_trading_limits(self):
         """Reset limits and counters and ensure the dashboard updates immediately"""
@@ -1125,6 +1185,12 @@ class AggressiveGrowthBot:
             win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
             total_pnl = self.equity - self.starting_capital
             
+            # Current Session Stats
+            daily_pnl = self.equity - self.daily_start_equity
+            session_trades = [t for t in self.trades if t.get('time', '').startswith(self.session_date)]
+            daily_wins = len([t for t in session_trades if t['pnl_inr'] > 0])
+            daily_losses = len([t for t in session_trades if t['pnl_inr'] < 0])
+
             data = {
                 "equity": round(self.equity, 2),
                 "target": self.target_equity,
@@ -1135,6 +1201,13 @@ class AggressiveGrowthBot:
                 "winning_trades": winning_trades,
                 "losing_trades": losing_trades,
                 "win_rate": round(win_rate, 2),
+                # Session Data
+                "session_date": self.session_date,
+                "session_start_time": self.session_start_time.strftime('%H:%M:%S'),
+                "daily_pnl": round(daily_pnl, 2),
+                "daily_trades": self.daily_trades,
+                "daily_wins": daily_wins,
+                "daily_losses": daily_losses,
                 "positions": [
                     {
                         "symbol": p,
@@ -1151,7 +1224,7 @@ class AggressiveGrowthBot:
                     } for p, d in self.positions.items()
                 ],
                 "recent_trades": self.trades[-50:], # Increased to 50
-                "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "last_update": self.get_ist_now().strftime("%Y-%m-%d %H:%M:%S"),
                 "active_mode": "HYBRID",
                 "leverage_mode": "PRO",
                 "market_structure": self.latest_analysis,

@@ -116,6 +116,70 @@ body {
     margin-left: 8px;
 }
 
+.header-info-chips {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+}
+
+.info-chip {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    border-radius: 12px;
+    font-size: 14px;
+}
+
+.info-chip .label {
+    color: var(--text-secondary);
+    margin-right: 8px;
+}
+
+.info-chip .value {
+    color: var(--accent);
+    font-weight: 700;
+}
+
+/* Session Stats Row */
+.session-stats-row {
+    display: flex;
+    justify-content: space-around;
+    background: var(--card-bg);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 16px;
+    margin-bottom: 24px;
+}
+
+.session-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.session-stat .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.session-stat .value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.session-stat #sessionPnl.pnl-pos {
+    color: var(--success);
+}
+
+.session-stat #sessionPnl.pnl-neg {
+    color: var(--danger);
+}
+
 /* Stats Grid */
 .stats-grid {
     display: grid;
@@ -326,6 +390,53 @@ body {
     font-size: 13px;
     display: flex;
     justify-content: space-between;
+}
+
+/* History List */
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.history-item {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.history-date {
+    font-weight: 700;
+    color: var(--text-primary);
+    grid-column: span 2;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+.history-data {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.history-data span {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.history-pnl.pnl-pos {
+    color: var(--success);
+}
+
+.history-pnl.pnl-neg {
+    color: var(--danger);
 }
 
 .empty-state {

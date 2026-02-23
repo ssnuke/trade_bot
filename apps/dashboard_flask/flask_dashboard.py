@@ -41,6 +41,25 @@ def get_data():
         return jsonify(data)
     return jsonify({"error": "No data available"}), 404
 
+@app.route('/api/session_history')
+def get_session_history():
+    history_dir = BASE_DIR / "apps" / "bot" / "paper_trades" / "sessions"
+    if not history_dir.exists():
+        return jsonify([])
+    
+    history = []
+    try:
+        for file in history_dir.glob("session_*.json"):
+            with open(file, 'r') as f:
+                history.append(json.load(f))
+        
+        # Sort by date descending
+        history.sort(key=lambda x: x.get('date', ''), reverse=True)
+        return jsonify(history)
+    except Exception as e:
+        print(f"Error loading session history: {e}")
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     port = int(os.getenv("PORT", "5006"))
     print("🚀 Premium Delta Bot Dashboard starting...")

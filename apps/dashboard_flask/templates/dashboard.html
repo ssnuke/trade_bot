@@ -23,9 +23,15 @@
                 </div>
             </div>
             <div class="header-right">
-                <div class="heartbeat">
-                    <span class="label">Heartbeat:</span>
-                    <span id="lastHeartbeat">--:--:--</span>
+                <div class="header-info-chips">
+                    <div class="info-chip">
+                        <span class="label">📅 Trading Day:</span>
+                        <span id="tradingDay" class="value">Loading...</span>
+                    </div>
+                    <div class="heartbeat">
+                        <span class="label">Heartbeat:</span>
+                        <span id="lastHeartbeat">--:--:--</span>
+                    </div>
                 </div>
             </div>
         </header>
@@ -63,6 +69,26 @@
                     <div class="stat-value" id="dailyPnl">₹0</div>
                     <div class="stat-sub">Current Session</div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Daily Session Stats Row -->
+        <div class="session-stats-row">
+            <div class="session-stat">
+                <span class="label">Session P&L:</span>
+                <span id="sessionPnl" class="value">₹0</span>
+            </div>
+            <div class="session-stat">
+                <span class="label">Trades:</span>
+                <span id="sessionTrades" class="value">0</span>
+            </div>
+            <div class="session-stat">
+                <span class="label">W/L:</span>
+                <span id="sessionWinLoss" class="value">0 / 0</span>
+            </div>
+            <div class="session-stat">
+                <span class="label">Start Time:</span>
+                <span id="sessionStart" class="value">--:--</span>
             </div>
         </div>
 
@@ -115,6 +141,15 @@
                     </div>
                     <div class="logs-container" id="logsContainer">
                         <div class="log-entry">Connecting to feed...</div>
+                    </div>
+                </div>
+
+                <div class="card section history-section">
+                    <div class="section-header">
+                        <h2>📜 Session History (Daily)</h2>
+                    </div>
+                    <div class="history-list" id="historyContainer">
+                        <div class="empty-state">No past sessions recorded.</div>
                     </div>
                 </div>
 
