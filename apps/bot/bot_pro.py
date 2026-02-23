@@ -56,7 +56,8 @@ def health():
 def get_analysis():
     global bot_instance
     if bot_instance:
-        data = bot_instance.latest_analysis or {"status": "scanning", "msg": "Bot logic is warm-up"}
+        # Return full data if available, otherwise fallback to latest analysis
+        data = bot_instance.full_dashboard_data if bot_instance.full_dashboard_data else (bot_instance.latest_analysis or {})
         data["bot_version"] = "PRO_V2_RESTRICTED"
         return jsonify(data)
     return jsonify({"error": "Bot instance not initialized"})
@@ -193,6 +194,7 @@ class AggressiveGrowthBot:
         self.sure_shot_only = True # 🚀 ONLY take high-precision trades by default
 
         self.latest_analysis = {} # Store analysis for API
+        self.full_dashboard_data = {} # Store full state for UI
         self.priority_symbol = None # Symbol to scan with priority
         self.last_priority_scan = 0
         self._bot_heartbeat_ts = time.time() # For watchdog
@@ -1270,6 +1272,8 @@ class AggressiveGrowthBot:
                 "market_state": self.get_market_state(), # Added session/alertness
                 "recent_logs": list(self.log_queue)
             }
+            
+            self.full_dashboard_data = data # Store for immediate API access
             
             # Atomic write with retry for Windows locking
             temp = self.dashboard_file + ".tmp"
