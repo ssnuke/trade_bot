@@ -14,7 +14,7 @@ import json
 import sys
 import shutil 
 from collections import deque # For log buffer
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
 from flask_cors import CORS
 import threading
 from dotenv import load_dotenv
@@ -30,20 +30,27 @@ if sys.stdout.encoding != 'utf-8':
 
 load_dotenv()
 
-app = Flask(__name__)
+# Setup Flask with access to the dashboard templates/static files
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # apps/bot
+PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
+app = Flask(__name__, 
+            template_folder=os.path.join(PROJECT_ROOT, "apps", "dashboard_flask", "templates"),
+            static_folder=os.path.join(PROJECT_ROOT, "apps", "dashboard_flask", "static"))
+
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 bot_instance = None
 
 @app.route('/', methods=['GET'])
 def home():
-    return jsonify({
-        "service": "Delta Bot Worker (Engine)",
-        "status": "Running",
-        "message": "This is the backend engine. The UI is hosted on a SEPARATE Render service (delta-bot-dashboard).",
-        "api_endpoints": ["/analysis", "/dashboard_data", "/reset"]
-    })
+    """Serve the main trading dashboard UI"""
+    return render_template('dashboard.html')
 
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "Running", "service": "Delta Bot Worker + UI"})
+
+@app.route('/api/data', methods=['GET'])
 @app.route('/dashboard_data', methods=['GET'])
 @app.route('/analysis', methods=['GET'])
 def get_analysis():
