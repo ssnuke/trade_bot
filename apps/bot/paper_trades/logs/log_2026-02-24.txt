@@ -1,0 +1,13 @@
+15:45:12 - 📊 Fetching all USD Product IDs...
+15:45:12 - ✅ Loaded 178 USD products.
+15:45:12 - 🎯 Bot will scan 14 active symbols (Loop time ~30-40s)
+15:45:12 - VERIFICATION TEST LOG MESSAGE
+15:45:50 - 🚀 Aggressive Growth Bot Starting...
+15:45:50 -    Capital: 5000 INR
+15:45:50 -    Target: 80000 INR (6x)
+15:45:50 -    Leverage: 25x
+15:45:50 -    Mode: PAPER
+15:45:50 - 📊 Fetching all USD Product IDs...
+15:45:50 - ✅ Loaded 178 USD products.
+15:45:50 - 🎯 Bot will scan 14 active symbols (Loop time ~30-40s)
+15:45:50 - VERIFICATION TEST LOG MESSAGE

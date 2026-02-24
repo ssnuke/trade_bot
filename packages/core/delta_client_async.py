@@ -1,27 +1,28 @@
-import time
+import asyncio
 import hmac
 import hashlib
-import requests
 import json
 import urllib.parse
-from typing import Optional, Any, Dict
+from typing import Optional, Any
+import aiohttp
 
 
-class DeltaClient:
+class AsyncDeltaClient:
+    """Async version of Delta Exchange API client."""
+    
     def __init__(
         self,
         api_key: Optional[str],
         api_secret: Optional[str],
-        base_url: str = "https://api.india.delta.exchange"
+        base_url: str = "https://api.india.delta.exchange",
+        timeout: int = 15,
+        max_retries: int = 3
     ):
-        self.api_key: str = api_key or ""
-        self.api_secret: str = api_secret or ""
+        self.api_key = api_key
+        self.api_secret = api_secret
         self.base_url = base_url
-        self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": "delta-bot-v1",
-            "Content-Type": "application/json"
-        })
+        self.timeout = aiohttp.ClientTimeout(total=timeout)
+        self.max_retries = max_retries
 
     def _generate_signature(
         self,
@@ -39,22 +40,21 @@ class DeltaClient:
             hashlib.sha256
         ).hexdigest()
 
-    def _request(
+    async def _request(
         self,
         method: str,
         endpoint: str,
         params: Optional[dict] = None,
         payload: Optional[dict] = None,
-        auth: bool = True,
-        retries: int = 3
+        auth: bool = True
     ) -> Optional[dict[str, Any]]:
         url = f"{self.base_url}{endpoint}"
         
-        for attempt in range(retries):
+        for attempt in range(self.max_retries):
             try:
-                timestamp = str(int(time.time()))
+                timestamp = str(int(asyncio.get_event_loop().time()))
                 
-                headers: Dict[str, str] = {}
+                headers: dict[str, str] = {"Content-Type": "application/json"}
                 if auth:
                     query_string = ""
                     if params:
@@ -69,40 +69,33 @@ class DeltaClient:
                         "timestamp": timestamp
                     })
 
-                response = self.session.request(
-                    method, url, params=params, json=payload, headers=headers, timeout=15
-                )
-                response.raise_for_status()
-                return response.json()
-                
-            except requests.exceptions.Timeout:
-                if attempt < retries - 1:
-                    print(f"⚠️ Timeout on attempt {attempt + 1}/{retries}, retrying...")
-                    time.sleep(1)
+                async with aiohttp.ClientSession(timeout=self.timeout) as session:
+                    async with session.request(
+                        method,
+                        url,
+                        params=params,
+                        json=payload,
+                        headers=headers
+                    ) as response:
+                        response.raise_for_status()
+                        return await response.json()
+                        
+            except asyncio.TimeoutError:
+                if attempt < self.max_retries - 1:
+                    print(f"⚠️ Timeout on attempt {attempt + 1}/{self.max_retries}, retrying...")
+                    await asyncio.sleep(1)
                     continue
                 else:
-                    print(f"❌ Request timed out after {retries} attempts")
+                    print(f"❌ Request timed out after {self.max_retries} attempts")
                     return None
                     
-            except requests.exceptions.HTTPError as e:
-                if e.response is not None and 500 <= e.response.status_code < 600:
-                    if attempt < retries - 1:
-                        print(f"⚠️ Server error {e.response.status_code}, retrying...")
-                        time.sleep(2)
-                        continue
-                print(f"❌ API Error: {e}")
-                if e.response is not None:
-                    print(f"Response: {e.response.text}")
-                return None
-                
-            except requests.exceptions.ConnectionError as e:
-                if attempt < retries - 1:
-                    print(f"⚠️ Connection error, retrying...")
-                    time.sleep(2)
+            except aiohttp.ClientError as e:
+                if attempt < self.max_retries - 1:
+                    print(f"⚠️ Client error, retrying: {e}")
+                    await asyncio.sleep(2)
                     continue
-                else:
-                    print(f"❌ Connection failed after {retries} attempts: {e}")
-                    return None
+                print(f"❌ API Error: {e}")
+                return None
                     
             except Exception as e:
                 print(f"❌ Request Failed: {e}")
@@ -110,11 +103,11 @@ class DeltaClient:
         
         return None
 
-    def get_products(self) -> list[dict[str, Any]]:
-        resp = self._request("GET", "/v2/products", auth=False)
+    async def get_products(self) -> list[dict[str, Any]]:
+        resp = await self._request("GET", "/v2/products", auth=False)
         return resp.get('result', []) if resp else []
 
-    def get_candles(
+    async def get_candles(
         self,
         symbol: str,
         resolution: str = "1m",
@@ -130,10 +123,10 @@ class DeltaClient:
         if end:
             params["end"] = end
         
-        resp = self._request("GET", "/v2/history/candles", params=params, auth=False)
+        resp = await self._request("GET", "/v2/history/candles", params=params, auth=False)
         return resp.get('result', []) if resp else []
 
-    def place_order(
+    async def place_order(
         self,
         product_id: int,
         size: float,
@@ -150,24 +143,22 @@ class DeltaClient:
         if price:
             payload["limit_price"] = str(price)
             
-        resp = self._request("POST", "/v2/orders", payload=payload, auth=True)
+        resp = await self._request("POST", "/v2/orders", payload=payload, auth=True)
         return resp.get('result', {}) if resp else None
 
-    def set_leverage(self, product_id: int, leverage: int) -> Optional[dict[str, Any]]:
-        payload = {
-            "leverage": str(leverage)
-        }
-        return self._request(
+    async def set_leverage(self, product_id: int, leverage: int) -> Optional[dict[str, Any]]:
+        payload = {"leverage": str(leverage)}
+        return await self._request(
             "POST",
             f"/v2/products/{product_id}/orders/leverage",
             payload=payload,
             auth=True
         )
 
-    def get_positions(self) -> list[dict[str, Any]]:
-        resp = self._request("GET", "/v2/positions", auth=True)
+    async def get_positions(self) -> list[dict[str, Any]]:
+        resp = await self._request("GET", "/v2/positions", auth=True)
         return resp.get('result', []) if resp else []
 
-    def get_ticker(self, symbol: str) -> Optional[dict[str, Any]]:
-        resp = self._request("GET", f"/v2/tickers/{symbol}", auth=False)
+    async def get_ticker(self, symbol: str) -> Optional[dict[str, Any]]:
+        resp = await self._request("GET", f"/v2/tickers/{symbol}", auth=False)
         return resp.get('result', {}) if resp else None

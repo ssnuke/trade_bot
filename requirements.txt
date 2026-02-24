@@ -1,7 +1,11 @@
 requests
+aiohttp
 pandas
+numpy
 python-dotenv
 flask
 flask-cors
 streamlit
 plotly
+waitress
+pyyaml
