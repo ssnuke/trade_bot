@@ -36,10 +36,9 @@ class BaseStrategy(ABC):
         """
         pass
     
-    @abstractmethod
     def should_exit(self, df: pd.DataFrame, position: dict) -> tuple[bool, str]:
         """
-        Check if position should be exited.
+        Default exit check (none). Can be overridden by subclasses.
         
         Args:
             df: DataFrame with current OHLCV data
@@ -48,7 +47,7 @@ class BaseStrategy(ABC):
         Returns:
             Tuple of (should_exit: bool, reason: str)
         """
-        pass
+        return False, ""
     
     def validate_dataframe(self, df: pd.DataFrame) -> bool:
         """Validate that dataframe has required columns."""
