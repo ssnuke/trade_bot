@@ -17,7 +17,7 @@ COPY tools ./tools
 
 # Create data directories and set permissions
 RUN mkdir -p /app/data /app/data/paper_trades && \
-    chown -R botuser:botuser /app/data
+    chown -R botuser:botuser /app
 
 USER botuser
 

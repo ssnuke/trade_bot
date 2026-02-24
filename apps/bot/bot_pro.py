@@ -205,8 +205,10 @@ class AggressiveGrowthBot:
         self.db = DatabaseManager(DB_PATH)
         
         # --- PATHS & LOGGING SETUP ---
-        self.trade_log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "paper_trades")
-        self.dashboard_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard_data.json")
+        # Data base path (defaults to PROJECT_ROOT/data for Docker compatibility)
+        self.data_base = os.path.join(PROJECT_ROOT, "data")
+        self.trade_log_dir = os.path.join(self.data_base, "paper_trades")
+        self.dashboard_file = os.path.join(self.data_base, "dashboard_data.json")
         self.session_history_dir = os.path.join(self.trade_log_dir, "sessions")
         self.session_log_dir = os.path.join(self.trade_log_dir, "logs")
         
