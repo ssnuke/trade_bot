@@ -1534,35 +1534,37 @@ def run_flask():
 
 
 # ============ MODULE-LEVEL INITIALIZATION ============
-# Initialize bot manager when module loads
+# Initialize and launch bot system when module loads (works with WSGI servers)
 print("\n🔧 Initializing bot system...")
 multi_bot_mode = initialize_multi_bot_system()
 
+# Launch bots immediately at module level (works for both direct run and WSGI)
+if multi_bot_mode:
+    print("🚀 Launching all bots...")
+    time.sleep(0.5)  # Brief pause for class to be ready
+    bots_launched = launch_all_bots()
+    
+    if not bots_launched:
+        print("⚠️  Bot launch failed, falling back to single-bot mode")
+        multi_bot_mode = False
+
+# Fallback to single bot mode if needed
+if not multi_bot_mode:
+    print("\n🔄 Starting in single-bot mode...")
+    bot_instance = AggressiveGrowthBot()
+    
+    # Start Watchdog
+    w = threading.Thread(target=watchdog_thread, args=(bot_instance,), daemon=True)
+    w.start()
+    
+    # Start Bot in background thread
+    t = threading.Thread(target=bot_instance.run, daemon=True)
+    t.start()
+
+print("✅ Bot system initialization complete\n")
+
 
 if __name__ == "__main__":
-    # Launch bots if multi-bot mode is enabled
-    if multi_bot_mode:
-        # Wait a moment for class to be fully loaded
-        time.sleep(0.5)
-        bots_launched = launch_all_bots()
-        
-        if not bots_launched:
-            print("⚠️  Bot launch failed, falling back to single-bot mode")
-            multi_bot_mode = False
-    
-    # Fallback to single bot mode if needed
-    if not multi_bot_mode:
-        print("\n🔄 Starting in single-bot mode...")
-        bot_instance = AggressiveGrowthBot()
-        
-        # Start Watchdog
-        w = threading.Thread(target=watchdog_thread, args=(bot_instance,), daemon=True)
-        w.start()
-        
-        # Start Bot in background thread
-        t = threading.Thread(target=bot_instance.run, daemon=True)
-        t.start()
-    
-    # Run Flask in main thread (works for both single and multi-bot)
+    # When run directly, start the Flask server
     run_flask()
 
