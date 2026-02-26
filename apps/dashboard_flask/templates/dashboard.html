@@ -50,6 +50,12 @@
                 <!-- Tabs will be populated by JavaScript -->
             </div>
             <div class="bot-controls">
+                <button id="addBotBtn" class="btn-primary btn-sm" title="Add New Bot">
+                    ➕ Add Bot
+                </button>
+                <button id="deleteBotBtn" class="btn-danger btn-sm" title="Delete Current Bot">
+                    🗑️ Delete Bot
+                </button>
                 <button id="viewDbBtn" class="btn-secondary btn-sm" title="View Database Records">
                     🗄️ View DB
                 </button>
@@ -240,6 +246,70 @@
                     </div>
                     <button id="updateCapitalBtn" class="btn-primary btn-block">Update Capital</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Bot Modal -->
+    <div id="addBotModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>➕ Add New Bot</h2>
+                <button class="modal-close" id="addBotModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="botName">Bot Name:</label>
+                    <input type="text" id="botName" placeholder="e.g., RSI Scalper (10,20,80)" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label for="botStartingCapital">Starting Capital (₹):</label>
+                    <input type="number" id="botStartingCapital" placeholder="5000" value="5000" min="100" class="form-input">
+                </div>
+
+                <div class="form-section">
+                    <h3>📊 RSI Configuration</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="rsiPeriod">Period:</label>
+                            <input type="number" id="rsiPeriod" value="14" min="5" max="50" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="rsiOversold">Oversold Threshold:</label>
+                            <input type="number" id="rsiOversold" value="30" min="10" max="50" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="rsiOverbought">Overbought Threshold:</label>
+                            <input type="number" id="rsiOverbought" value="70" min="50" max="90" class="form-input">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>📈 MACD Configuration</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="macdFast">Fast:</label>
+                            <input type="number" id="macdFast" value="12" min="5" max="20" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="macdSlow">Slow:</label>
+                            <input type="number" id="macdSlow" value="26" min="15" max="40" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="macdSignal">Signal:</label>
+                            <input type="number" id="macdSignal" value="9" min="5" max="15" class="form-input">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="botNotes">Notes (Optional):</label>
+                    <textarea id="botNotes" placeholder="Description of this bot's strategy..." class="form-textarea"></textarea>
+                </div>
+
+                <button id="createBotBtn" class="btn-primary btn-block btn-lg">Create Bot</button>
             </div>
         </div>
     </div>

@@ -328,6 +328,99 @@ class DashboardManager {
         }
     }
 
+    async addNewBot() {
+        // Get form values
+        const botName = document.getElementById('botName').value;
+        const startingCapital = document.getElementById('botStartingCapital').value;
+        const rsiPeriod = document.getElementById('rsiPeriod').value;
+        const rsiOversold = document.getElementById('rsiOversold').value;
+        const rsiOverbought = document.getElementById('rsiOverbought').value;
+        const macdFast = document.getElementById('macdFast').value;
+        const macdSlow = document.getElementById('macdSlow').value;
+        const macdSignal = document.getElementById('macdSignal').value;
+        const notes = document.getElementById('botNotes').value;
+
+        // Validate
+        if (!botName) {
+            alert('Please enter a bot name');
+            return;
+        }
+
+        // Build request
+        const botData = {
+            name: botName,
+            starting_capital: parseFloat(startingCapital),
+            rsi_period: parseInt(rsiPeriod),
+            rsi_oversold: parseInt(rsiOversold),
+            rsi_overbought: parseInt(rsiOverbought),
+            macd_fast: parseInt(macdFast),
+            macd_slow: parseInt(macdSlow),
+            macd_signal: parseInt(macdSignal),
+            notes: notes
+        };
+
+        try {
+            const response = await fetch('/api/bots', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(botData)
+            });
+
+            const result = await response.json();
+            
+            if (response.ok) {
+                alert(result.message || 'Bot created successfully!');
+                document.getElementById('addBotModal').classList.remove('active');
+                
+                // Clear form
+                document.getElementById('botName').value = '';
+                document.getElementById('botNotes').value = '';
+                
+                // Reload bots list
+                await this.loadBots();
+            } else {
+                alert('Error: ' + (result.error || 'Failed to create bot'));
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    async deleteCurrentBot() {
+        const botId = this.currentBotId;
+        
+        if (!botId || botId === 'default') {
+            alert('Cannot delete the default bot');
+            return;
+        }
+
+        const botConfig = this.allBots.find(b => b.id === botId);
+        const botName = botConfig ? botConfig.name : botId;
+
+        if (!confirm(`Are you sure you want to delete "${botName}"?\n\nThis will remove the bot configuration. The bot will stop running after restart.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/bots/${botId}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+            
+            if (response.ok) {
+                alert(result.message || 'Bot deleted successfully!');
+                
+                // Reload bots list and switch to first available
+                await this.loadBots();
+            } else {
+                alert('Error: ' + (result.error || 'Failed to delete bot'));
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
     async updateCapital() {
         const botId = this.currentBotId || 'default';
         const amount = parseFloat(document.getElementById('newCapital').value);
@@ -382,6 +475,24 @@ class DashboardManager {
             if (confirm('Reset bot trading limits?')) {
                 this.performBotAction('reset');
             }
+        });
+
+        // Add Bot button
+        document.getElementById('addBotBtn')?.addEventListener('click', () => {
+            document.getElementById('addBotModal').classList.add('active');
+        });
+
+        // Delete Bot button
+        document.getElementById('deleteBotBtn')?.addEventListener('click', () => {
+            this.deleteCurrentBot();
+        });
+
+        // Add Bot Modal
+        document.getElementById('addBotModalClose')?.addEventListener('click', () => {
+            document.getElementById('addBotModal').classList.remove('active');
+        });
+        document.getElementById('createBotBtn')?.addEventListener('click', () => {
+            this.addNewBot();
         });
 
         // Database modal

@@ -326,6 +326,103 @@ def set_bot_capital(bot_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/api/bots', methods=['POST'])
+def add_new_bot():
+    """Add a new bot configuration"""
+    global bot_manager_instance
+    
+    if not bot_manager_instance:
+        return jsonify({"error": "Bot manager not initialized"}), 500
+    
+    try:
+        from flask import request
+        data = request.json
+        
+        # Generate bot_id
+        existing_bots = bot_manager_instance.get_all_bots()
+        bot_numbers = []
+        for bot in existing_bots:
+            if bot['id'].startswith('bot_'):
+                try:
+                    num = int(bot['id'].split('_')[1])
+                    bot_numbers.append(num)
+                except:
+                    pass
+        
+        next_num = max(bot_numbers) + 1 if bot_numbers else 1
+        bot_id = f"bot_{next_num}"
+        
+        # Create bot config
+        bot_config = {
+            'id': bot_id,
+            'name': data.get('name', f'Bot {next_num}'),
+            'enabled': True,
+            'starting_capital': float(data.get('starting_capital', 5000)),
+            'current_capital': float(data.get('starting_capital', 5000)),
+            'strategy_mix': {
+                'sniper': 0.7,
+                'ema_cross': 0.3
+            },
+            'rsi_config': {
+                'period': int(data.get('rsi_period', 14)),
+                'oversold': int(data.get('rsi_oversold', 30)),
+                'overbought': int(data.get('rsi_overbought', 70))
+            },
+            'macd_config': {
+                'fast': int(data.get('macd_fast', 12)),
+                'slow': int(data.get('macd_slow', 26)),
+                'signal': int(data.get('macd_signal', 9))
+            },
+            'notes': data.get('notes', '')
+        }
+        
+        # Add to bot manager
+        bot_manager_instance.add_bot(bot_config)
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Bot '{bot_config['name']}' created successfully. Restart the launcher to activate it.",
+            "bot_id": bot_id,
+            "bot": bot_config
+        })
+    except ValueError as e:
+        return jsonify({"error": f"Invalid input: {str(e)}"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/bots/<bot_id>', methods=['DELETE'])
+def delete_bot(bot_id):
+    """Delete a bot configuration"""
+    global bot_manager_instance, bot_instances_registry
+    
+    if not bot_manager_instance:
+        return jsonify({"error": "Bot manager not initialized"}), 500
+    
+    try:
+        # Check if bot exists
+        bot_config = bot_manager_instance.get_bot_config(bot_id)
+        if not bot_config:
+            return jsonify({"error": f"Bot {bot_id} not found"}), 404
+        
+        # Remove from bot manager config
+        bot_manager_instance.remove_bot(bot_id)
+        
+        # Note: Running bot instance won't stop until restart
+        warning = ""
+        if bot_id in bot_instances_registry:
+            warning = " Note: Bot is still running - restart launcher to fully remove it."
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Bot '{bot_config.get('name', bot_id)}' deleted from configuration.{warning}",
+            "bot_id": bot_id
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.errorhandler(Exception)
 def handle_exception(e):
     return jsonify({"error": str(e)}), 500
