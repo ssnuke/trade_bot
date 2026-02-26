@@ -1427,18 +1427,107 @@ def watchdog_thread(bot):
             # For now, we'll just log this and warn the user.
             bot.log_queue.append(f"🚨 WATCHDOG: Potential hang detected!")
 
+
+def initialize_multi_bot_system():
+    """
+    Initialize and launch multiple bot instances from bots_config.json
+    Returns True if multi-bot mode enabled, False for single-bot fallback
+    """
+    global bot_manager_instance, bot_instances_registry
+    
+    config_path = os.path.join(PROJECT_ROOT, "data", "bots_config.json")
+    
+    # Check if multi-bot config exists
+    if not os.path.exists(config_path):
+        print("⚠️  No bots_config.json found - Running in single-bot mode")
+        return False
+    
+    try:
+        from packages.core.bot_manager import BotManager
+        
+        print(f"\n{'='*60}")
+        print(f"🤖 DELTA BOT MULTI-INSTANCE SYSTEM")
+        print(f"{'='*60}")
+        
+        # Initialize bot manager
+        bot_manager_instance = BotManager(config_path)
+        enabled_bots = bot_manager_instance.get_enabled_bots()
+        
+        if not enabled_bots:
+            print("⚠️  No enabled bots found - Running in single-bot mode")
+            return False
+        
+        print(f"📋 Found {len(enabled_bots)} enabled bot(s)")
+        
+        # Launch each bot in a separate thread
+        for bot_config in enabled_bots:
+            bot_id = bot_config['id']
+            bot_name = bot_config.get('name', bot_id)
+            
+            print(f"\n🚀 Launching: {bot_name}")
+            print(f"   Bot ID: {bot_id}")
+            print(f"   RSI: Period={bot_config['rsi_config']['period']}, "
+                  f"Oversold={bot_config['rsi_config']['oversold']}, "
+                  f"Overbought={bot_config['rsi_config']['overbought']}")
+            print(f"   Capital: ₹{bot_config.get('current_capital', 5000):,}")
+            
+            # Create bot instance
+            bot = AggressiveGrowthBot(bot_id=bot_id, bot_config=bot_config)
+            
+            # Register bot instance
+            bot_instances_registry[bot_id] = bot
+            
+            # Update bot manager status
+            bot_manager_instance.update_bot_status(bot_id, {
+                'status': 'running',
+                'started_at': datetime.now().isoformat(),
+                'capital': bot_config.get('current_capital', 5000)
+            })
+            
+            # Start bot thread
+            bot_thread = threading.Thread(target=bot.run, daemon=True, name=f"Bot-{bot_id}")
+            bot_thread.start()
+            
+            # Start watchdog for this bot
+            watchdog = threading.Thread(target=watchdog_thread, args=(bot,), daemon=True, name=f"Watchdog-{bot_id}")
+            watchdog.start()
+            
+            print(f"✅ {bot_name} started successfully")
+            time.sleep(0.5)  # Stagger launches
+        
+        print(f"\n✅ All {len(enabled_bots)} bots launched successfully!")
+        print(f"🌐 Dashboard available at: http://localhost:5005")
+        print(f"{'='*60}\n")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error initializing multi-bot system: {e}")
+        print("⚠️  Falling back to single-bot mode")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 if __name__ == "__main__":
-    bot_instance = AggressiveGrowthBot()
+    # Try to initialize multi-bot system first
+    multi_bot_enabled = initialize_multi_bot_system()
     
-    # Start Watchdog
-    w = threading.Thread(target=watchdog_thread, args=(bot_instance,))
-    w.daemon = True
-    w.start()
+    if not multi_bot_enabled:
+        # Fallback to single bot mode
+        print("\n🔄 Starting in single-bot mode...")
+        bot_instance = AggressiveGrowthBot()
+        
+        # Start Watchdog
+        w = threading.Thread(target=watchdog_thread, args=(bot_instance,))
+        w.daemon = True
+        w.start()
+        
+        # Start Bot in background thread
+        t = threading.Thread(target=bot_instance.run)
+        t.daemon = True
+        t.start()
     
-    # Start Bot in background thread
-    t = threading.Thread(target=bot_instance.run)
-    t.daemon = True
-    t.start()
-    
-    # Run Flask in main thread
+    # Run Flask in main thread (works for both single and multi-bot)
     run_flask()
+
