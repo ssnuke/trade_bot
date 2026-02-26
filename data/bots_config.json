@@ -1,0 +1,111 @@
+{
+  "active_bot_id": "bot_1",
+  "bots": [
+    {
+      "id": "bot_1",
+      "name": "RSI Aggressive (20,40,80)",
+      "enabled": true,
+      "starting_capital": 50000,
+      "current_capital": 50000,
+      "strategy_mix": {
+        "sniper": 0.7,
+        "ema_cross": 0.3
+      },
+      "rsi_config": {
+        "period": 20,
+        "oversold": 40,
+        "overbought": 80
+      },
+      "macd_config": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9
+      },
+      "notes": "Aggressive RSI settings for quick reversals"
+    },
+    {
+      "id": "bot_2",
+      "name": "RSI Conservative (15,35,50)",
+      "enabled": true,
+      "starting_capital": 50000,
+      "current_capital": 50000,
+      "strategy_mix": {
+        "sniper": 0.7,
+        "ema_cross": 0.3
+      },
+      "rsi_config": {
+        "period": 15,
+        "oversold": 35,
+        "overbought": 50
+      },
+      "macd_config": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9
+      },
+      "notes": "Conservative RSI settings for more confirmations"
+    },
+    {
+      "id": "bot_3",
+      "name": "RSI Balanced (14,30,70)",
+      "enabled": true,
+      "starting_capital": 5000,
+      "current_capital": 5000,
+      "strategy_mix": {
+        "sniper": 0.7,
+        "ema_cross": 0.3
+      },
+      "rsi_config": {
+        "period": 14,
+        "oversold": 30,
+        "overbought": 70
+      },
+      "macd_config": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9
+      },
+      "notes": "Standard RSI settings - balanced approach"
+    },
+    {
+      "id": "bot_4",
+      "name": "RSI Ultra-Aggressive (25,45,85)",
+      "enabled": true,
+      "starting_capital": 7500,
+      "current_capital": 7500,
+      "strategy_mix": {
+        "sniper": 0.7,
+        "ema_cross": 0.3
+      },
+      "rsi_config": {
+        "period": 25,
+        "oversold": 45,
+        "overbought": 85
+      },
+      "macd_config": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9
+      },
+      "notes": "Very aggressive - catches smaller pullbacks with higher capital"
+    }
+  ],
+  "default_config": {
+    "starting_capital": 50000,
+    "strategy_mix": {
+      "sniper": 0.7,
+      "ema_cross": 0.3
+    },
+    "rsi_config": {
+      "period": 14,
+      "oversold": 30,
+      "overbought": 70
+    },
+    "macd_config": {
+      "fast": 12,
+      "slow": 26,
+      "signal": 9
+    }
+  },
+  "last_updated": "2026-02-26T10:00:00"
+}

@@ -32,6 +32,7 @@ Thumbs.db
 
 # Runtime data
 /data/*.json
+!/data/bots_config.json
 /data/paper_trades/
 
 # Build artifacts
