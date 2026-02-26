@@ -14,11 +14,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY apps ./apps
 COPY packages ./packages
 COPY tools ./tools
+
+# Create data directories first
+RUN mkdir -p /app/data /app/data/paper_trades
+
+# Copy bot configuration
 COPY data/bots_config.json ./data/bots_config.json
 
-# Create data directories and set permissions
-RUN mkdir -p /app/data /app/data/paper_trades && \
-    chown -R botuser:botuser /app
+# Set permissions
+RUN chown -R botuser:botuser /app
 
 USER botuser
 
