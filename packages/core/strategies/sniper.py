@@ -15,12 +15,20 @@ class SniperStrategy(BaseStrategy):
     Refined with logic from bot_pro.py.
     """
     
-    def __init__(self, swing_lookback: int = 20, min_breakout_pct: float = 0.005):
-        super().__init__("SNIPER")
+    def __init__(self, swing_lookback: int = 20, min_breakout_pct: float = 0.005, strategy_config: dict = None):
+        config = strategy_config or {}
+        rsi_config = config.get('rsi_config', {})
+        
+        super().__init__("SNIPER", strategy_config=config)
         self.swing_lookback = swing_lookback
         self.min_breakout_pct = min_breakout_pct
         self.pattern_recognizer = PatternRecognizer()
         self.structure_analyzer = StructureAnalyzer()
+        
+        # RSI configuration with defaults
+        self.rsi_period = rsi_config.get('period', 14)
+        self.rsi_oversold = rsi_config.get('oversold', 30)
+        self.rsi_overbought = rsi_config.get('overbought', 70)
     
     def analyze(self, df_5m: pd.DataFrame, df_15m: pd.DataFrame, df_1h: pd.DataFrame, df_4h: pd.DataFrame) -> Optional[Signal]:
         """
@@ -62,8 +70,8 @@ class SniperStrategy(BaseStrategy):
 
         # 4. Filter Criteria
         vol_multiplier = 1.5 
-        rsi_long_limit = 40  
-        rsi_short_limit = 60 
+        rsi_long_limit = self.rsi_oversold  # Use configurable oversold threshold
+        rsi_short_limit = self.rsi_overbought  # Use configurable overbought threshold
         
         vol_avg = df_5m['volume'].tail(20).mean()
         volume_exhaustion = cur['volume'] > (vol_avg * vol_multiplier)

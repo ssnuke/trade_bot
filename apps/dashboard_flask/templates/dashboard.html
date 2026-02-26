@@ -33,8 +33,28 @@
                         <span id="lastHeartbeat">--:--:--</span>
                     </div>
                 </div>
+                <div class="header-controls">
+                    <button id="capitalBtn" class="btn-secondary btn-sm" title="Manage capital">
+                        💰 Capital
+                    </button>
+                    <button id="resetBtn" class="btn-secondary btn-sm" title="Reset bot limits">
+                        🔄 Reset
+                    </button>
+                </div>
             </div>
         </header>
+
+        <!-- Bot Tabs Navigation (Multi-Bot) -->
+        <div class="bot-tabs-container">
+            <div class="bot-tabs" id="botTabs">
+                <!-- Tabs will be populated by JavaScript -->
+            </div>
+            <div class="bot-controls">
+                <button id="viewDbBtn" class="btn-secondary btn-sm" title="View Database Records">
+                    🗄️ View DB
+                </button>
+            </div>
+        </div>
 
         <!-- Stats Grid -->
         <div class="stats-grid">
@@ -160,6 +180,65 @@
                     <div class="analysis-grid" id="analysisContainer">
                         <!-- Populated by JS -->
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Database Viewer Modal -->
+    <div id="dbModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🗄️ Database Records</h2>
+                <button class="modal-close" id="dbModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="db-controls">
+                    <div class="db-filter">
+                        <label for="dbTable">Table:</label>
+                        <select id="dbTable">
+                            <option value="trades">Trades</option>
+                            <option value="sessions">Sessions</option>
+                        </select>
+                    </div>
+                    <div class="db-filter">
+                        <label for="dbLimit">Limit:</label>
+                        <input type="number" id="dbLimit" value="100" min="10" max="1000">
+                    </div>
+                    <button id="dbRefreshBtn" class="btn-primary btn-sm">Refresh</button>
+                </div>
+                <div class="db-table-container">
+                    <table id="dbTable-content" class="db-table">
+                        <thead id="dbTableHead"></thead>
+                        <tbody id="dbTableBody">
+                            <tr><td colspan="10" style="text-align: center;">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Capital Management Modal -->
+    <div id="capitalModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h2>💰 Capital Management</h2>
+                <button class="modal-close" id="capitalModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="capital-option">
+                    <button id="resetCapitalBtn" class="btn-danger btn-block">Reset Capital to Starting Amount</button>
+                    <p class="help-text">Resets equity to the initial starting capital (₹<span id="startingCapitalDisplay">5000</span>)</p>
+                </div>
+                <hr>
+                <div class="capital-option">
+                    <label for="newCapital">Set Custom Capital:</label>
+                    <div class="input-group">
+                        <span class="input-prefix">₹</span>
+                        <input type="number" id="newCapital" placeholder="Enter amount" min="100">
+                    </div>
+                    <button id="updateCapitalBtn" class="btn-primary btn-block">Update Capital</button>
                 </div>
             </div>
         </div>

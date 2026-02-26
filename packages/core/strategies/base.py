@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Dict, Any
 import pandas as pd
 
 
@@ -14,23 +14,27 @@ class Signal:
     confidence: float  # 0-1
     strategy: str
     reason: str
+    extra_data: Dict[str, Any] = None
+    
+    def __post_init__(self):
+        if self.extra_data is None:
+            self.extra_data = {}
 
 
 class BaseStrategy(ABC):
     """Base class for all trading strategies."""
     
-    def __init__(self, name: str):
+    def __init__(self, name: str, strategy_config: Optional[Dict[str, Any]] = None):
         self.name = name
+        self.strategy_config = strategy_config or {}
     
     @abstractmethod
-    def analyze(self, df: pd.DataFrame, symbol: str) -> Optional[Signal]:
+    def analyze(self, *args, **kwargs) -> Optional[Signal]:
         """
         Analyze the dataframe and return a trading signal if available.
         
-        Args:
-            df: DataFrame with OHLCV data
-            symbol: Trading symbol
-            
+        Signature varies by strategy implementation. See subclasses for details.
+        
         Returns:
             Signal if entry condition met, None otherwise
         """

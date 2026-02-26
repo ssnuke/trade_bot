@@ -146,6 +146,186 @@ def reset_capital():
     print(f"{msg}\n❌ Capital reset failed: bot_instance is None")
     return jsonify({"error": "Bot instance not initialized"}), 400
 
+
+# ============ MULTI-BOT ENDPOINTS ============
+
+bot_instances_registry = {}  # Global registry: {bot_id: bot_instance}
+bot_manager_instance = None  # Global BotManager instance
+
+
+@app.route('/api/bots', methods=['GET'])
+def get_all_bots():
+    """Get list of all bots with their status"""
+    global bot_manager_instance
+    if not bot_manager_instance:
+        return jsonify({"error": "Bot manager not initialized"}), 500
+    
+    try:
+        bots_list = bot_manager_instance.list_all_bots_with_status()
+        return jsonify(bots_list)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/bots/<bot_id>/data', methods=['GET'])
+def get_bot_data(bot_id):
+    """Get dashboard data for a specific bot"""
+    global bot_instances_registry
+    
+    bot = bot_instances_registry.get(bot_id)
+    if not bot:
+        return jsonify({"error": f"Bot {bot_id} not found or not running"}), 404
+    
+    try:
+        data = bot.full_dashboard_data if bot.full_dashboard_data else (bot.latest_analysis or {})
+        data["bot_id"] = bot_id
+        data["bot_version"] = "MULTI_BOT_PRO_V1"
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/bots/<bot_id>/db', methods=['GET'])
+def get_bot_database(bot_id):
+    """Get database records (trades and sessions) for a bot, with filtering"""
+    global bot_instances_registry
+    
+    bot = bot_instances_registry.get(bot_id)
+    if not bot:
+        return jsonify({"error": f"Bot {bot_id} not found or not running"}), 404
+    
+    try:
+        from flask import request
+        
+        # Get query parameters for filtering
+        table = request.args.get('table', 'trades')  # 'trades' or 'sessions'
+        limit = int(request.args.get('limit', 100))
+        
+        if table == 'trades':
+            records = bot.db.get_recent_trades(limit=limit, bot_id=bot_id)
+        elif table == 'sessions':
+            records = bot.db.get_session_history(bot_id=bot_id)
+        else:
+            return jsonify({"error": f"Unknown table: {table}"}), 400
+        
+        return jsonify({
+            "bot_id": bot_id,
+            "table": table,
+            "count": len(records),
+            "records": records
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/bots/<bot_id>/reset', methods=['POST'])
+def reset_specific_bot(bot_id):
+    """Reset a specific bot's trading limits"""
+    global bot_instances_registry
+    
+    bot = bot_instances_registry.get(bot_id)
+    if not bot:
+        return jsonify({"error": f"Bot {bot_id} not found or not running"}), 404
+    
+    try:
+        msg = f"📩 RESET REQUEST FOR BOT {bot_id}: {datetime.now().strftime('%H:%M:%S')}"
+        bot.log(msg)
+        bot.reset_trading_limits()
+        bot.log("✅ Reset executed")
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Bot {bot_id} limits and counters reset successfully",
+            "bot_id": bot_id
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/bots/<bot_id>/reset_capital', methods=['POST'])
+def reset_bot_capital(bot_id):
+    """Reset a specific bot's capital to starting amount"""
+    global bot_instances_registry, bot_manager_instance
+    
+    bot = bot_instances_registry.get(bot_id)
+    if not bot:
+        return jsonify({"error": f"Bot {bot_id} not found or not running"}), 404
+    
+    try:
+        msg = f"💰 CAPITAL RESET FOR BOT {bot_id}: {datetime.now().strftime('%H:%M:%S')}"
+        bot.log(msg)
+        
+        old_equity = bot.equity
+        initial_capital = bot.starting_capital
+        
+        bot.equity = initial_capital
+        bot.daily_start_equity = initial_capital
+        bot.positions = {}
+        bot.trades = []
+        bot.consecutive_wins = 0
+        bot.consecutive_losses = 0
+        bot.consecutive_sure_shot_losses = 0
+        bot.daily_trades = 0
+        bot.save_active_positions()
+        
+        # Update in bot manager
+        if bot_manager_instance:
+            bot_manager_instance.reset_bot_capital(bot_id)
+        
+        bot.log(f"✅ Capital reset: {old_equity:.2f} INR → {initial_capital} INR")
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Bot {bot_id} capital reset to ₹{initial_capital}",
+            "bot_id": bot_id,
+            "old_equity": old_equity,
+            "new_equity": initial_capital
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/bots/<bot_id>/set_capital', methods=['POST'])
+def set_bot_capital(bot_id):
+    """Set a specific bot's capital to a new amount"""
+    global bot_instances_registry, bot_manager_instance
+    
+    bot = bot_instances_registry.get(bot_id)
+    if not bot:
+        return jsonify({"error": f"Bot {bot_id} not found or not running"}), 404
+    
+    try:
+        from flask import request
+        data = request.json
+        new_capital = float(data.get('amount'))
+        
+        if new_capital <= 0:
+            return jsonify({"error": "Capital must be greater than 0"}), 400
+        
+        msg = f"💰 CAPITAL UPDATE FOR BOT {bot_id}: {datetime.now().strftime('%H:%M:%S')}"
+        bot.log(msg)
+        
+        old_equity = bot.equity
+        bot.equity = new_capital
+        
+        # Update in bot manager
+        if bot_manager_instance:
+            bot_manager_instance.update_bot_capital(bot_id, new_capital)
+        
+        bot.log(f"✅ Capital updated: {old_equity:.2f} INR → {new_capital:.2f} INR")
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Bot {bot_id} capital updated to ₹{new_capital}",
+            "bot_id": bot_id,
+            "old_equity": old_equity,
+            "new_equity": new_capital
+        })
+    except ValueError:
+        return jsonify({"error": "Invalid capital amount"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.errorhandler(Exception)
 def handle_exception(e):
     return jsonify({"error": str(e)}), 500
@@ -158,7 +338,17 @@ def resource_not_found(e):
 DB_PATH = os.path.join(PROJECT_ROOT, "data", "bot_data.db")
 
 class AggressiveGrowthBot:
-    def __init__(self):
+    def __init__(self, bot_id: str = None, bot_config: dict = None):
+        """
+        Initialize the bot
+        
+        Args:
+            bot_id: Unique identifier for this bot instance (e.g., 'bot_1', 'bot_2')
+            bot_config: Configuration dict with rsi_config, macd_config, starting_capital, etc.
+        """
+        self.bot_id = bot_id or 'default'
+        self.bot_config = bot_config or {}
+        
         self.api_key = os.getenv("DELTA_API_KEY")
         self.api_secret = os.getenv("DELTA_API_SECRET")
         self.base_url = os.getenv("DELTA_BASE_URL", "https://api.india.delta.exchange")
@@ -166,10 +356,11 @@ class AggressiveGrowthBot:
         
         self.client = DeltaClient(self.api_key, self.api_secret, self.base_url)
         
-        # --- AGGRESSIVE GROWTH CONFIGURATION ---
-        self.starting_capital = 5000
-        self.equity = 5000
-        self.target_equity = 80000  # Target as requested: 80k INR from 5k
+        # --- AGGRESSIVE GROWTH CONFIGURATION (with bot-specific overrides) ---
+        # Get starting capital from bot config, default to 5000
+        self.starting_capital = self.bot_config.get('starting_capital', 5000)
+        self.equity = self.bot_config.get('current_capital', self.starting_capital)
+        self.target_equity = 80000  # Target as requested: 80k INR from starting capital
         
         # Adaptive Risk Management
         self.base_leverage = 25 # Reduced to 25x as requested
@@ -202,13 +393,20 @@ class AggressiveGrowthBot:
         self.trades = []
         
         # --- DATABASE SETUP ---
-        self.db = DatabaseManager(DB_PATH)
+        # Use bot_id to create separate DB per bot if in multi-bot mode
+        self.db = DatabaseManager(DB_PATH, bot_id=self.bot_id if self.bot_id != 'default' else None)
         
         # --- PATHS & LOGGING SETUP ---
         # Data base path (defaults to PROJECT_ROOT/data for Docker compatibility)
         self.data_base = os.path.join(PROJECT_ROOT, "data")
         self.trade_log_dir = os.path.join(self.data_base, "paper_trades")
-        self.dashboard_file = os.path.join(self.data_base, "dashboard_data.json")
+        
+        # Bot-specific files
+        bot_suffix = f"_{self.bot_id}" if self.bot_id != 'default' else ""
+        self.dashboard_file = os.path.join(self.data_base, f"dashboard_data{bot_suffix}.json")
+        self.state_file = os.path.join(self.data_base, f"bot_state{bot_suffix}.json")
+        self.positions_file = os.path.join(self.data_base, f"active_positions_pro{bot_suffix}.json")
+        
         self.session_history_dir = os.path.join(self.trade_log_dir, "sessions")
         self.session_log_dir = os.path.join(self.trade_log_dir, "logs")
         
@@ -254,8 +452,8 @@ class AggressiveGrowthBot:
         self.risk_manager = RiskManager()
         self.executor = OrderExecutor(self.client, self.db, self.paper_trading)
         self.strategies = {
-            "SNIPER": SniperStrategy(self.swing_lookback, self.min_breakout_pct),
-            "EMA_CROSS": EMACrossStrategy()
+            "SNIPER": SniperStrategy(self.swing_lookback, self.min_breakout_pct, strategy_config=self.bot_config),
+            "EMA_CROSS": EMACrossStrategy(strategy_config=self.bot_config)
         }
         
         self.load_state() 
@@ -869,7 +1067,6 @@ class AggressiveGrowthBot:
 
     def save_active_positions(self):
         """Save current open positions to JSON for monitoring"""
-        filename = os.path.join(self.trade_log_dir, "active_positions_pro.json")
         try:
             serializable_positions = {}
             for sym, pos in self.positions.items():
@@ -878,7 +1075,7 @@ class AggressiveGrowthBot:
                     p['entry_time'] = p['entry_time'].strftime('%Y-%m-%d %H:%M:%S')
                 serializable_positions[sym] = p
                 
-            with open(filename, 'w') as f:
+            with open(self.positions_file, 'w') as f:
                 json.dump({
                     "last_update": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     "equity": self.equity,
@@ -924,10 +1121,9 @@ class AggressiveGrowthBot:
                 print(f"   ⚠️ State load error (dashboard): {e}. Starting fresh.")
 
         # Load detailed counters from active_positions_pro.json
-        pos_file = os.path.join(self.trade_log_dir, "active_positions_pro.json")
-        if os.path.exists(pos_file):
+        if os.path.exists(self.positions_file):
             try:
-                with open(pos_file, "r") as f:
+                with open(self.positions_file, "r") as f:
                     p_data = json.load(f)
                     self.daily_trades = p_data.get("daily_trades", 0)
                     self.consecutive_losses = p_data.get("consecutive_losses", 0)

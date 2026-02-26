@@ -9,8 +9,16 @@ class EMACrossStrategy(BaseStrategy):
     Refined with strict trending filters from bot_pro.py.
     """
     
-    def __init__(self):
-        super().__init__("EMA_CROSS")
+    def __init__(self, strategy_config: dict = None):
+        config = strategy_config or {}
+        macd_config = config.get('macd_config', {})
+        
+        super().__init__("EMA_CROSS", strategy_config=config)
+        
+        # MACD configuration with defaults
+        self.macd_fast = macd_config.get('fast', 12)
+        self.macd_slow = macd_config.get('slow', 26)
+        self.macd_signal = macd_config.get('signal', 9)
     
     def analyze(self, df_5m: pd.DataFrame, df_15m: pd.DataFrame) -> Optional[Signal]:
         """
